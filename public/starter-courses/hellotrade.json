@@ -1,0 +1,730 @@
+{
+  "id": "hellotrade",
+  "title": "HelloTrade: Trading the Decentralized Way",
+  "author": "Fishbones \u00b7 scraped from hellotrade.gitbook.io",
+  "description": "A guided tour of the HelloTrade decentralized perpetuals exchange. Covers the trading concepts (perps, leverage, liquidation, funding), the cryptographic signature scheme (EIP-191 / EIP-712 / ERC-2612), and the WebSocket + REST APIs you'd use to build your own client. Comes with a Postman-style API tester built in \u2014 every lesson lets you fire real requests at the staging environment from inside the app.",
+  "language": "javascript",
+  "releaseStatus": "BETA",
+  "tier": "core",
+  "chapters": [
+    {
+      "id": "intro",
+      "title": "What is HelloTrade?",
+      "lessons": [
+        {
+          "id": "what-is-hellotrade",
+          "kind": "reading",
+          "title": "What is HelloTrade?",
+          "body": "HelloTrade is a **decentralized perpetual futures exchange** that\nlets you trade crypto with leverage \u2014 without any of the gas-fee\nfriction usually associated with on-chain trading. You authenticate\nwith your wallet, sign your orders, and the exchange does the rest.\n\nIf you've used Binance or Coinbase, the trading screen will feel\nfamiliar: an order book, candle charts, market and limit orders,\npositions. If you've used Uniswap, the wallet-first auth flow will\nfeel familiar: no email, no password, just a signature.\n\nWhat makes HelloTrade different from both:\n\n- **No gas for orders.** Placing, modifying, and cancelling all\n  happen off-chain via cryptographic signatures. You only pay\n  on-chain fees when you deposit or withdraw collateral.\n- **One wallet = one account.** Connect a wallet, sign a message,\n  done. The exchange auto-creates your account on first auth.\n- **Public market data with no auth.** Anyone can subscribe to\n  the live ticker feed, order book, and trades stream \u2014 useful\n  for building dashboards, bots, or just learning.\n\nThis course will walk you through the trading concepts, the\ncryptographic signature scheme, and the WebSocket + REST APIs\nyou'd use to build your own client. We'll also use a built-in\n**API tester** (the panel that appears above many lessons) to\nhit real endpoints as we go.\n"
+        },
+        {
+          "id": "perp-vs-spot",
+          "kind": "reading",
+          "title": "Perpetual futures vs. spot",
+          "body": "A **spot** trade is the simple kind: you buy 0.1 BTC for $6,700\nUSDC, your wallet balance shifts, you own the BTC.\n\nA **perpetual futures contract** (or \"perp\") is different. You're\nnot buying the asset \u2014 you're entering a contract that **tracks**\nthe asset's price. If you \"buy\" 0.1 BTC-PERP at $67,000 and the\nprice moves to $68,000, your account credits the $100 difference.\nIf it moves to $66,000, your account debits $100. You never hold\nBTC; you hold a position.\n\nWhy bother? Two reasons:\n\n1. **Leverage.** A perp lets you control more notional value than\n   the cash you put down as collateral. Post $1,000 in USDC,\n   trade $10,000 worth of BTC exposure \u2014 that's 10x leverage.\n   Profits and losses scale to the notional, not the cash.\n2. **Shorting is symmetric.** \"Selling\" a perp you don't own is\n   just opening a short position. There's no borrow step like\n   on a centralized spot exchange.\n\nPerps are called \"perpetual\" because they have no expiry date,\nunlike traditional dated futures. To keep the perp's price\nanchored to the underlying spot price, the exchange runs a\n**funding rate** mechanism \u2014 periodic payments between longs\nand shorts that we'll cover in chapter 3.\n"
+        },
+        {
+          "id": "centralized-vs-decentralized",
+          "kind": "reading",
+          "title": "Centralized vs. decentralized exchanges",
+          "body": "HelloTrade sits between the two ends of a spectrum:\n\n- A **centralized exchange** (CEX) like Binance custodies your\n  funds, runs its own order matching engine, and handles\n  authentication via username + password (often plus 2FA). You\n  trust them with both your money and your identity.\n- A **decentralized exchange** (DEX) like Uniswap runs entirely\n  on-chain. Trades are smart-contract calls; you keep custody of\n  your funds in your wallet. Trade-off: every action costs gas\n  and confirmation takes seconds, which is awful for high-\n  frequency trading.\n\nHelloTrade's hybrid model:\n\n- **Custody is on-chain.** Your USDC sits in the exchange's\n  vault smart contract. You can withdraw it any time with a\n  signed message.\n- **Matching is off-chain.** The matching engine runs as a\n  centralized server (fast, sub-millisecond fills) but every\n  order is signed by your wallet. The server can't trade on your\n  behalf without a signature.\n- **Authentication is wallet-based.** No password to leak, no\n  account to recover.\n\nThe result: the user experience of a CEX (instant fills, no gas\nper trade) with the custody guarantee of a DEX (the exchange\noperator can't run away with your funds).\n"
+        },
+        {
+          "id": "the-order-book",
+          "kind": "reading",
+          "title": "The order book",
+          "body": "Every market on HelloTrade has an **order book** \u2014 two stacks of\nresting orders waiting to match:\n\n- The **bids** are buy orders, sorted by price descending.\n  Whoever is willing to pay the most sits at the top.\n- The **asks** are sell orders, sorted by price ascending.\n  Whoever is willing to sell for the least sits at the top.\n\nThe gap between the highest bid and lowest ask is the **spread**.\nTight spreads mean a healthy market with lots of activity; wide\nspreads mean illiquidity (or a fast-moving price).\n\nWhen a new order arrives, the matching engine checks: does it\n**cross** the book? A buy order at $67,341 would match against\nthe lowest ask of $67,340, generating a trade. A buy order at\n$67,338 would just sit on the book as a new resting bid.\n\nOrder book snapshots look like this (top of book, BTC-PERP):\n\n```\nAsks\n  67342.0  \u00d7  0.270\n  67341.5  \u00d7  1.554\n  67341.0  \u00d7  0.901\n  67340.5  \u00d7  0.345    \u2190 best ask (lowest sell price)\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  67340.0  \u00d7  0.521    \u2190 best bid (highest buy price)\n  67339.5  \u00d7  0.834\n  67339.0  \u00d7  1.230\n  67338.5  \u00d7  0.412\nBids\n```\n\nSpread: 67340.5 \u2212 67340.0 = $0.50.\n\nYou'll see this exact shape in chapter 5 when we subscribe to the\nlive order book stream.\n"
+        },
+        {
+          "id": "leverage-and-margin",
+          "kind": "reading",
+          "title": "Leverage and margin (the basics)",
+          "body": "**Margin** is the cash you post as collateral against a leveraged\nposition. **Leverage** is the multiplier between your margin and\nyour position size.\n\nExample: you open a 10x long on BTC-PERP at $67,000.\n\n- Position size: 1 BTC ($67,000 notional)\n- Margin posted: $6,700 (1/10 of notional \u2014 that's the 10x)\n- Available collateral remaining: depends on your account balance\n\nIf BTC rises 1% to $67,670:\n- Position value: $67,670\n- Profit: +$670\n- Return on margin: +10% (the 1% \u00d7 10x leverage)\n\nIf BTC falls 1% to $66,330:\n- Loss: \u2212$670\n- Return on margin: \u221210%\n\nLeverage cuts both ways. It also exposes you to **liquidation** \u2014\nif your losses eat into your margin past a maintenance threshold,\nthe exchange will close your position to prevent it from going\nnegative. We'll cover liquidation in detail in chapter 3.\n\nFor now, the mental model: leverage lets you put up less money\nto control more position. The exchange wants your collateral to\ncover any plausible adverse move; if it can't, the position has\nto close.\n"
+        },
+        {
+          "id": "intro-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: trading basics",
+          "body": "Quick check before we dive into the order types.\n",
+          "questions": [
+            {
+              "kind": "mcq",
+              "prompt": "What's the main difference between perpetual futures and spot trading?",
+              "options": [
+                "Perps cost more in fees than spot.",
+                "Perps track the asset price without you ever owning the asset; spot involves actually buying it.",
+                "Perps can only be sold, never bought.",
+                "Spot is always more leveraged than perps."
+              ],
+              "correctIndex": 1,
+              "explanation": "A perp is a contract that mirrors the price of an underlying asset. You profit or lose based on the price move; you never custody the asset."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "How does HelloTrade authenticate users?",
+              "options": [
+                "Username + password",
+                "Email magic links",
+                "A signed message from your wallet (no password)",
+                "An API key that you generate in a dashboard"
+              ],
+              "correctIndex": 2,
+              "explanation": "Wallet signatures are the entire auth model \u2014 no password, no email, no API keys."
+            },
+            {
+              "kind": "short",
+              "prompt": "What's the term for the gap between the best bid and the best ask in an order book?",
+              "accept": [
+                "spread",
+                "the spread",
+                "bid ask spread",
+                "bid-ask spread"
+              ],
+              "explanation": "The spread. Tight spreads = liquid market; wide = thin or volatile."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "If you open a 10x leveraged long on BTC-PERP and BTC rises 2%, your return on margin is approximately:",
+              "options": [
+                "+2%",
+                "+5%",
+                "+10%",
+                "+20%"
+              ],
+              "correctIndex": 3,
+              "explanation": "Leverage multiplies the percentage move on the underlying. 2% \u00d7 10x = 20% return on margin (and the same magnitude downside if it had moved against you)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "title": "Order types and pricing",
+      "lessons": [
+        {
+          "id": "limit-orders",
+          "kind": "reading",
+          "title": "Limit orders",
+          "body": "A **limit order** says: \"match me, but only at this price or\nbetter.\" A buy limit at $67,000 will fill at $67,000 or below;\na sell limit at $67,000 will fill at $67,000 or above.\n\nLimit orders let you control the price you pay, but they don't\nguarantee a fill \u2014 if the market never reaches your price, your\norder sits on the book forever (or until the time-in-force\nexpires; more on that shortly).\n\nLimit orders that don't immediately match become **resting\norders** sitting on the order book. They're the orders you saw in\nthe previous chapter's bid/ask stack.\n\nA limit order that DOES immediately match (e.g. a buy limit\nabove the best ask) acts like a market order for the matched\nportion, and any leftover sits on the book. This is called a\n**marketable limit** \u2014 usually preferred over a pure market\norder because it caps your worst-case execution price.\n"
+        },
+        {
+          "id": "market-orders",
+          "kind": "reading",
+          "title": "Market orders",
+          "body": "A **market order** says: \"match me right now, at whatever price\nthe book offers.\" Market buys eat through the asks from the top\ndown; market sells eat through the bids.\n\nThe trade-off: instant fill, but your fill price depends on how\nmuch liquidity sits at each level. A small buy might fill at the\nbest ask. A huge buy in a thin market can **slip** several\npercent as it consumes successive levels.\n\n```\nAsks\n  67342.0  \u00d7  0.270   \u2190 consumed second\n  67341.5  \u00d7  1.554\n  67341.0  \u00d7  0.901\n  67340.5  \u00d7  0.345   \u2190 consumed first\n```\n\nA market buy of 0.5 BTC against this book fills as:\n- 0.345 @ 67340.5\n- 0.155 @ 67341.0 (top of next level)\n- Volume-weighted average: ~$67,340.66\n\nThat ~$0.16 above the best ask is your **slippage**. For tiny\nsizes against deep books it's negligible; for large sizes against\nthin books it's the dominant cost.\n\nFor this reason, most algorithmic traders use marketable limit\norders (a limit slightly above the best ask) instead of pure\nmarket orders \u2014 same instant fill, but a hard cap on slippage.\n"
+        },
+        {
+          "id": "stop-and-stoplimit",
+          "kind": "reading",
+          "title": "Stop and stop-limit orders",
+          "body": "A **stop order** is conditional: it sits dormant until a trigger\nprice is touched, then activates as a market order.\n\nStop orders come in two flavours:\n\n- **Stop-loss**: triggers when the price moves AGAINST you.\n  Long position at $67,000 with a stop at $66,500 \u2192 if BTC drops\n  to $66,500, your stop fires a market sell to close the position.\n- **Stop-buy**: triggers when the price moves UP through a level.\n  Useful for breakout entries: place a buy stop above current\n  resistance, get filled if and only if the breakout happens.\n\nThe risk with a plain stop is the same as a plain market order:\nslippage. In a fast move, the market price at trigger time may\nbe well past your stop level, and you fill into a thin book.\n\nA **stop-limit** order solves this. Two prices:\n- **Stop price**: when the market touches this, the order activates.\n- **Limit price**: once active, it's a regular limit order at this price.\n\nA stop-limit sell with stop=$66,500 and limit=$66,400 means: at\n$66,500 the order arms; it then tries to fill at $66,400 or\nbetter. If the market gaps straight to $66,000, the limit at\n$66,400 doesn't match and the position stays open.\n\nThe trade-off vs. a plain stop: you avoid catastrophic slippage,\nbut you might not fill at all in a violent move.\n"
+        },
+        {
+          "id": "time-in-force",
+          "kind": "reading",
+          "title": "Time in force flags",
+          "body": "Every order carries a **time in force (TIF)** flag that controls\nhow long the matching engine keeps it alive:\n\n- **GTC** (Good Till Cancelled): rests on the book until you\n  cancel it or it fills. The default for limit orders that you\n  expect to live for a while.\n- **GTD** (Good Till Date): like GTC, but auto-cancels at a\n  specified deadline timestamp.\n- **IOC** (Immediate Or Cancel): match what you can right now;\n  cancel any unfilled remainder. Used for \"I want at most this\n  price, but if I can't get my whole size, I don't want a leftover\n  resting on the book.\"\n- **FOK** (Fill Or Kill): match the whole order immediately, or\n  cancel completely. No partial fills. Used for \"all or nothing\"\n  arbitrage where a partial fill leaves you with an unwanted leg.\n- **DAY**: like GTC, but auto-cancels at the end of the current\n  trading day (defined by exchange UTC midnight).\n\nMarket orders are typically IOC by definition \u2014 there's no resting\nstate for a market order to return to.\n\nPicking the right TIF matters as much as picking the right price:\na GTC limit can leave you in a stale position weeks later, an FOK\non a thin market just gets cancelled instantly.\n"
+        },
+        {
+          "id": "ticks-and-lots",
+          "kind": "reading",
+          "title": "Tick sizes and lot sizes",
+          "body": "Markets aren't continuous. Every market has a **tick size**\n(minimum price increment) and a **lot size** (minimum size\nincrement).\n\nFor BTC-PERP on HelloTrade:\n- Tick size: 0.5 \u2014 prices are quoted in $0.50 steps\n  ($67,340.00, $67,340.50, $67,341.00, but never $67,340.30)\n- Lot size: 0.0001 \u2014 order sizes round to 0.0001 BTC\n  (you can trade 0.0001, 0.0002, etc., but not 0.00005)\n\nFor ETH-PERP:\n- Tick size: 0.05\n- Lot size: 0.001\n\nThe exchange tells you these values via the **instruments\nendpoint** (`GET /api/instruments`), which we'll hit in the API\ntester in chapter 7. If you submit an order at a non-tick price,\nthe engine rejects it with an `INVALID_PRICE` error.\n\nYour client code should round prices and sizes to the tick / lot\nbefore sending. Common idiom:\n\n```js\nfunction roundToTick(price, tickSize) {\n  return Math.round(price / tickSize) * tickSize;\n}\n```\n"
+        },
+        {
+          "id": "self-trade-prevention",
+          "kind": "reading",
+          "title": "Self-trade prevention",
+          "body": "What happens if you accidentally place a buy order that matches\nyour own resting sell order? On most exchanges, by default, the\ntrade just fills \u2014 you swap with yourself, eat the fee, and walk\naway with the same position you had before.\n\nHelloTrade has **self-trade prevention (STP)** built in. When the\nmatching engine sees an incoming order from account X about to\ncross with a resting order from the SAME account X, it can:\n\n- **Cancel both** orders and let you re-place\n- **Cancel the resting** order and let the new one rest\n- **Cancel the new** order and leave the resting one\n- **Decrement and cancel** \u2014 match the smaller side, cancel the\n  rest of the larger\n\nWhich mode applies depends on the order's STP flag. Most\nalgorithmic traders set \"cancel both\" so neither side leaks\nthrough; manual traders often use \"cancel new\" so they don't\naccidentally lose a long-resting order.\n\nThis matters most for market makers who quote both sides\nconstantly \u2014 without STP, every requote risk eating its own\nquote.\n"
+        },
+        {
+          "id": "orders-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: order types",
+          "body": "Make sure these are second-nature before we touch the API.\n",
+          "questions": [
+            {
+              "kind": "mcq",
+              "prompt": "You want to enter a long position only if BTC breaks above $70,000. What order type fits?",
+              "options": [
+                "Limit buy at $70,000",
+                "Market buy",
+                "Stop-buy with trigger $70,000",
+                "Stop-limit sell with stop $70,000"
+              ],
+              "correctIndex": 2,
+              "explanation": "A stop-buy sits dormant until the trigger is touched, then activates. A limit at $70k would fill any time the market is at or below $70k \u2014 the opposite of waiting for a breakout."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "What does FOK (Fill Or Kill) guarantee?",
+              "options": [
+                "The order fills the full size or doesn't fill at all",
+                "The order rests on the book until you cancel it",
+                "The order fills at the best available price regardless of size",
+                "The order auto-cancels at end of day"
+              ],
+              "correctIndex": 0,
+              "explanation": "All-or-nothing. Used when a partial fill would leave you with an unwanted leg."
+            },
+            {
+              "kind": "short",
+              "prompt": "If BTC-PERP has a tick size of 0.5, can you place a limit at 67340.30?",
+              "accept": [
+                "no",
+                "No",
+                "no, must be a multiple of 0.5"
+              ],
+              "explanation": "No \u2014 prices have to land on a tick boundary. The engine rejects non-tick prices with INVALID_PRICE."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "What is self-trade prevention designed to stop?",
+              "options": [
+                "Two different traders matching against each other",
+                "Your account matching against another account on the same exchange",
+                "Your incoming order accidentally matching a resting order from the same account",
+                "Stop orders triggering during low liquidity"
+              ],
+              "correctIndex": 2,
+              "explanation": "STP catches the case where you'd be on both sides of the trade \u2014 wasting fees and leaving your net position unchanged."
+            }
+          ]
+        },
+        {
+          "id": "first-api-call",
+          "kind": "mixed",
+          "title": "Your first API call",
+          "body": "Time to actually use the platform. Above this lesson is the **API\nTester** \u2014 it's like a built-in Postman, with HelloTrade's\nendpoints pre-loaded in the sidebar.\n\nTry this:\n\n1. In the sidebar, under **Market data**, click **List markets**.\n2. The URL bar fills with `GET {{baseUrl}}/api/markets`.\n3. Hit **Send**.\n4. The response panel shows a JSON list of every market the\n   exchange supports \u2014 BTC-PERP, ETH-PERP, etc., along with their\n   numeric ids and decimal precision.\n\nBy default the dock runs in **MOCK** mode (the pill in the header\nsays so) \u2014 the response is canned but structurally accurate, so\nthe lesson works offline. Toggle **Live mode** to hit the real\nstaging API. Either way, the request and response shapes are\nidentical.\n\nNow try **List instruments** \u2014 same kind of GET, returns more\nmetadata (tick sizes, lot sizes, max leverage). This is the\nendpoint your client would call on startup to know what to\ndisplay.\n\nA few other things worth poking at while you're here:\n- The `{{\u00b7}}` button opens the **environment editor** \u2014 that's\n  where `{{baseUrl}}` is defined. You can swap to mainnet by\n  editing one variable.\n- The **History** in your browser localStorage remembers your\n  recent requests so reloading doesn't lose them.\n\nSpend a couple of minutes exploring; the rest of the course\nhangs off this tool.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        }
+      ]
+    },
+    {
+      "id": "risk",
+      "title": "Risk: liquidation, funding, margin",
+      "lessons": [
+        {
+          "id": "initial-vs-maintenance-margin",
+          "kind": "reading",
+          "title": "Initial vs. maintenance margin",
+          "body": "Two margin numbers control your position's risk envelope:\n\n- **Initial margin** is what you have to post to OPEN the\n  position. At 10x leverage on a $10,000 notional, initial margin\n  is $1,000.\n- **Maintenance margin** is the minimum equity you must keep in\n  the position to STAY open. Always lower than initial margin \u2014\n  typically 50% of it (so 5% of notional for the 10x example).\n\nIf your equity in the position drops below the maintenance\nmargin (because the price moved against you), the exchange\n**liquidates** \u2014 closes the position automatically to prevent\nyour account from going negative.\n\nQuick walkthrough. Long 1 BTC at $67,000, 10x leverage:\n- Initial margin: $6,700 (10% of notional)\n- Maintenance margin: $3,350 (5% of notional)\n- Liquidation price: roughly when your unrealized loss equals\n  initial \u2212 maintenance = $3,350. That's a $3,350 / 1 BTC =\n  $3,350 move down \u2192 liquidation around $63,650.\n\nThe exact liquidation price depends on funding accruals, fees,\nand any cross-margin contributions from other positions, but\nthat's the back-of-envelope.\n"
+        },
+        {
+          "id": "the-liquidation-engine",
+          "kind": "reading",
+          "title": "How liquidation works",
+          "body": "When your equity hits the maintenance margin threshold, the\nliquidation engine fires:\n\n1. **Position is taken over** by the liquidation system.\n2. The system places a **closing order** on the book \u2014 usually a\n   market or marketable limit order to flatten the position\n   immediately.\n3. If the resulting fill is at a worse price than the bankruptcy\n   price (where your remaining margin would be exactly zero),\n   the exchange's **insurance fund** absorbs the deficit so the\n   counterparty still gets full payout.\n4. If even the insurance fund can't cover it (rare, only in\n   extreme moves), **auto-deleveraging (ADL)** kicks in: the\n   exchange selects profitable counterparties (highest leverage,\n   then highest unrealized PnL) and closes a fraction of THEIR\n   positions to socialise the loss.\n\nWhat this means for you as a trader:\n- Don't wait for liquidation; close manually if you can. The\n  liquidation system charges a fee on top of your loss.\n- ADL is rare but real \u2014 extreme volatility can cap your profits\n  even if your direction was right, because someone on the other\n  side blew up.\n- Insurance funds are healthy on big exchanges; ADL is a\n  catastrophic-tail risk, not a daily concern.\n"
+        },
+        {
+          "id": "funding-rates",
+          "kind": "reading",
+          "title": "Funding rates explained",
+          "body": "Perpetual futures have no expiry \u2014 so what keeps them tracking\nthe spot price? Funding rates.\n\nEvery 8 hours (or hourly on some exchanges), the platform\ncalculates the spread between the perp price and the spot index.\nIf the perp is trading ABOVE spot (longs want exposure more than\nshorts), longs PAY shorts a small percentage of their position\nvalue. If it's trading BELOW spot, shorts pay longs.\n\nThe math:\n- Funding rate is computed and published continuously.\n- A typical rate is in the range \u00b10.01% per 8-hour period\n  (about 11% annualized, either way).\n- At each funding tick, every position pays/receives:\n  `position_size \u00d7 index_price \u00d7 funding_rate`.\n\nWhy this matters as a trader:\n- **Carry cost.** If you're long a market with persistently\n  positive funding, you're paying ~10\u201330% APR just to hold the\n  position, even if the price doesn't move.\n- **Mean reversion signal.** Extreme funding rates often precede\n  price reversals \u2014 they imply lopsided positioning.\n- **Funding arbitrage.** You can short the perp and buy the spot\n  in equal size to harvest the funding rate while staying\n  delta-neutral. Real cash, real profit, real risk (basis risk\n  if the legs decouple).\n\nYou can fetch current and historical funding rates via the\n`/api/funding-rates` endpoint \u2014 try it in the API tester after\nthis chapter.\n"
+        },
+        {
+          "id": "mark-vs-index-price",
+          "kind": "reading",
+          "title": "Mark price vs. index price vs. last price",
+          "body": "Three prices a perp keeps track of, and they're not the same:\n\n- **Last price**: the price of the most recent trade on this\n  market. What you see flashing on the ticker.\n- **Index price**: a volume-weighted average from external spot\n  exchanges. Represents the \"fair\" price of the underlying.\n- **Mark price**: the price the exchange uses to compute\n  unrealized PnL and trigger liquidations. Usually a smoothed\n  blend of index price + perp price, biased toward the index to\n  prevent manipulation.\n\nWhy mark price exists: imagine you're long with a tight stop. A\nmalicious actor briefly spikes the LAST price by hitting your\nstop on this exchange. If the system used last price for\nliquidations, your position blows up on a flash crash that didn't\nhappen on any other exchange. By using mark price (anchored to a\nbroader index), the exchange protects you from these single-venue\nattacks.\n\nThe flip side: your liquidation price is computed against mark\nprice, not last price. If the perp briefly trades $200 below the\nindex because someone dumped a market order, you don't get\nliquidated unless the MARK price (which barely moved) crossed\nyour liquidation threshold.\n\nPull the current mark + index pair from `/api/mark-prices`.\n"
+        },
+        {
+          "id": "insurance-fund-and-adl",
+          "kind": "reading",
+          "title": "Insurance fund and ADL",
+          "body": "We mentioned these in the liquidation walkthrough; here's the\nfuller picture.\n\n**The insurance fund** is the exchange's cash buffer for\nabsorbing liquidation shortfalls. It gets fed by:\n- A small fee charged on every liquidation (the \"liquidation\n  fee\" \u2014 typically a few basis points of the closed notional).\n- Any positive slippage on liquidation closes (the system\n  closes at a better price than bankruptcy, the difference goes\n  to the fund).\n\nThe fund pays out when:\n- A liquidation closes at a WORSE price than bankruptcy.\n  Counterparty still gets paid in full; the fund covers the\n  difference.\n\nA healthy insurance fund is the exchange's main defence against\nneeding to socialise losses. On HelloTrade staging, you can\ninspect the current fund balance via a public endpoint (we'll\nlook at this in the REST chapter).\n\n**Auto-deleveraging (ADL)** is the last-resort mechanism. If the\ninsurance fund is empty and a liquidation can't be cleared,\nthe exchange picks profitable counterparties on the other side\nof the market and force-closes a fraction of their positions\nto make the books balance.\n\nADL ranking is usually: highest leverage first, then highest\nunrealized PnL. The intuition: someone running 50x with a 200%\nunrealized profit is the closest to \"house money\" \u2014 losing some\nof it stings less than haircutting a conservative position.\n\nSome clients let you display your current ADL queue position so\nyou know where you stand. On HelloTrade, this comes through as\nan account event you can subscribe to via WebSocket.\n"
+        },
+        {
+          "id": "a-losing-trade-walkthrough",
+          "kind": "reading",
+          "title": "A losing trade, step by step",
+          "body": "Putting it all together. You open a 5x long on ETH-PERP.\n\n- Entry: $3,300\n- Size: 1 ETH\n- Notional: $3,300\n- Leverage: 5x\n- Initial margin posted: $660\n- Maintenance margin: $330 (50% of initial)\n- Liquidation price (before fees + funding): roughly $2,970\n\nWhat happens over the next 12 hours:\n\n**Hour 0**: Position opens. Account equity = $660.\n\n**Hour 4**: ETH drops to $3,200. Unrealized PnL = \u2212$100.\nEquity = $560. Still well above maintenance.\n\n**Hour 8**: First funding tick. Funding rate is +0.012% (longs\npay shorts; market is leaning long). You pay $3,200 \u00d7 0.00012 =\n$0.38. Negligible by itself, but it adds up.\n\n**Hour 10**: ETH drops further to $3,050. Unrealized PnL = \u2212$250.\nEquity = $410. Close to maintenance.\n\n**Hour 11**: ETH spikes down to $2,970 on a market sell wave.\n**Mark price** rises from $2,970 to $2,975 because the index\nanchored to other exchanges hasn't fallen as much. Mark price\nis what triggers liquidation, and at $2,975 your equity is\nstill $325 \u2014 JUST below the $330 maintenance threshold.\n\n**Liquidation fires.** The engine market-sells your 1 ETH at\n$2,968 (a hair below mark, because the book had thin asks\nabove). Closed PnL = \u2212$332. Liquidation fee = $5 charged. Your\n$660 margin returns approximately $323.\n\n**Hour 12**: ETH bounces back to $3,250. You missed it.\n\nLessons:\n- Mark price (not last price) is what matters for survival.\n- A 10% adverse move was enough to liquidate a 5x position.\n- The liquidation engine paid out roughly half your initial\n  margin \u2014 high leverage trades with thin stops can wipe quickly.\n"
+        },
+        {
+          "id": "risk-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: risk and margin",
+          "body": "These concepts decide whether you survive a bad trade.\n",
+          "questions": [
+            {
+              "kind": "short",
+              "prompt": "If your initial margin requirement is 10% of notional and your maintenance margin is 5% of notional, what leverage are you running?",
+              "accept": [
+                "10x",
+                "10",
+                "10X"
+              ],
+              "explanation": "Initial margin is 1/leverage of notional. 10% = 1/10 = 10x."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "Which price does HelloTrade use to trigger liquidations?",
+              "options": [
+                "Last trade price on HelloTrade",
+                "Index price (external average)",
+                "Mark price (smoothed blend, anchored to the index)",
+                "Whichever of the three is highest"
+              ],
+              "correctIndex": 2,
+              "explanation": "Mark price is the manipulation-resistant choice. Pure last price would expose traders to single-venue spikes."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "Funding rates exist primarily to:",
+              "options": [
+                "Generate revenue for the exchange",
+                "Compensate market makers for liquidity",
+                "Anchor the perp price to the spot price",
+                "Discourage high-leverage trading"
+              ],
+              "correctIndex": 2,
+              "explanation": "When perp > spot, longs pay shorts (encouraging shorts). When perp < spot, shorts pay longs. The economic pressure pulls the perp back to spot."
+            },
+            {
+              "kind": "short",
+              "prompt": "Last-resort mechanism that haircuts profitable traders' positions when the insurance fund can't cover a liquidation:",
+              "accept": [
+                "ADL",
+                "auto-deleveraging",
+                "auto deleveraging",
+                "adl"
+              ],
+              "explanation": "Auto-deleveraging. Rare but real \u2014 a tail risk to be aware of in extreme moves."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "signatures",
+      "title": "Crypto signatures crash course",
+      "lessons": [
+        {
+          "id": "why-gasless-needs-signatures",
+          "kind": "reading",
+          "title": "Why gasless trading needs signatures",
+          "body": "HelloTrade is gasless because trades happen off-chain. But the\nexchange still needs to know that YOU authorized each order \u2014\notherwise anyone with your account address could place orders\non your behalf.\n\nThe solution: every operation that affects your account is a\n**signed message**. You compute the message contents, sign it\nwith your wallet's private key, and send the signature alongside\nthe request. The exchange verifies the signature against your\npublic address. Match \u2192 it's really you. Mismatch \u2192 rejected.\n\nThis is the same cryptographic primitive Ethereum uses to\nauthorize on-chain transactions \u2014 except instead of broadcasting\nthe signed message to a blockchain (and paying gas), you send it\nto HelloTrade's matching engine.\n\nTwo signature standards are in play:\n- **EIP-191**: signs an arbitrary string. Used for simple things\n  like authentication and mass-cancel where the payload doesn't\n  need a structured schema.\n- **EIP-712**: signs a structured object with a typed schema.\n  Used for orders, deposits, and withdrawals \u2014 the types lock\n  the meaning of each field so a malicious frontend can't trick\n  you into signing something different from what your wallet\n  shows.\n\nThe next few lessons unpack each one.\n"
+        },
+        {
+          "id": "eip-191",
+          "kind": "reading",
+          "title": "EIP-191: simple message signing",
+          "body": "EIP-191 is the older, simpler standard. The wallet prepends a\nfixed prefix to your message and signs the keccak256 hash:\n\n```\n\"\\x19Ethereum Signed Message:\\n\" + len(message) + message\n```\n\nThe prefix prevents the signed message from being valid as a\ntransaction \u2014 an attacker can't trick you into signing what\nlooks like a chat message but is actually a transfer payload.\n\nFor HelloTrade authentication, the message is a simple format:\n\n```\n${walletAddress}:${nonce}\n```\n\nExample:\n```\n0xa1B2c3D4E5F60718293A4b5C6D7E8f9012345678:1730812345000\n```\n\nYour wallet pops up \"Sign this message\" with the plain text\nvisible. You sign; the exchange verifies the signature recovers\nyour address; you're authenticated.\n\nIn TypeScript with ethers.js:\n\n```js\nconst nonce = Date.now();\nconst message = `${walletAddress}:${nonce}`;\nconst signature = await signer.signMessage(message);\n```\n\nThat's it. The `signMessage` call handles the prefix + hashing\ninternally. Send `{ signature, payload: encodedPayload }` and\nthe exchange does the inverse.\n"
+        },
+        {
+          "id": "eip-712",
+          "kind": "reading",
+          "title": "EIP-712: typed structured signing",
+          "body": "EIP-191 is fine for \"I'm me\" but loses its grip when you're\nsigning complex payloads. If the message is just a hash, your\nwallet shows a meaningless hex blob \u2014 and a malicious frontend\ncould swap the bytes for a different action.\n\n**EIP-712** fixes this by signing a TYPED structure. The wallet\nshows a human-readable view of every field:\n\n```\nPlace Order\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\naccount:  0xa1B2\u20265678\nmarket:   8 (BTC-PERP)\nsize:     0.0500\nprice:    66400.00\nnonce:    1730812345000\ndeadline: 1733404345000\n```\n\nThe signing process:\n\n1. **Domain** is defined once \u2014 a struct with the verifying\n   contract address, chain id, app name, version. Locks the\n   signature to a specific exchange instance.\n2. **Types** are declared as a schema. Each field has a name and\n   a Solidity type (`address`, `uint32`, `int256`, `uint256`).\n3. **Message** is the actual struct value.\n4. The wallet computes the EIP-712 hash and signs it. The user\n   sees the readable struct, not the hash.\n\nIn ethers.js:\n\n```js\nconst domain = {\n  name: \"HelloTrade Vault\",\n  version: \"1\",\n  chainId: 8453,\n  verifyingContract: \"0xVAULT_ADDRESS\",\n};\n\nconst types = {\n  Order: [\n    { name: \"account\",    type: \"address\" },\n    { name: \"market\",     type: \"uint32\"  },\n    { name: \"size\",       type: \"int256\"  },\n    { name: \"limitPrice\", type: \"uint256\" },\n    { name: \"nonce\",      type: \"uint256\" },\n    { name: \"deadline\",   type: \"uint256\" },\n    { name: \"flags\",      type: \"uint256\" },\n  ],\n};\n\nconst order = { account, market: 8, size, limitPrice, nonce, deadline, flags };\nconst signature = await signer._signTypedData(domain, types, order);\n```\n\nThe exchange independently reconstructs the domain + struct,\nverifies the signature, and accepts or rejects.\n"
+        },
+        {
+          "id": "sign-your-first-message",
+          "kind": "mixed",
+          "title": "Sign your first message",
+          "body": "You'll do this for real later. For now, let's just look at the\n**shape** of an authentication payload using the API tester.\n\nIn the **WebSocket** tab, click **Authenticate session** in the\nsidebar. The URL pre-fills `{{wsUrl}}` and the message body\nshows:\n\n```json\n{\n  \"type\": \"authenticate\",\n  \"signature\": {\n    \"sig\": \"<eip191-sig>\",\n    \"payload\": \"<hex-payload>\"\n  }\n}\n```\n\nThat's the contract: every authenticated WS message has a\n`signature` object with two fields. `sig` is the hex output of\n`signer.signMessage(...)`. `payload` is the hex-encoded payload\nthe signature was computed over (the exchange recomputes the\nhash from this payload to verify).\n\nHit **Connect**. The dock fakes a server response since neither\n`sig` nor `payload` is real:\n\n```json\n{\n  \"type\": \"authenticate.error\",\n  \"code\": \"INVALID_SIGNATURE\",\n  \"message\": \"Mock mode can't verify a real wallet signature\u2026\"\n}\n```\n\nThe error is the point \u2014 you've sent a structurally correct\nauthenticate frame, the server validated the shape and rejected\non the missing real signature. In a real client you'd derive\n`sig` from your wallet (via ethers / viem / wagmi) before\nsending.\n\nToggle **Live mode** off if you flipped it; mock mode is fine\nfor everything in this chapter.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "nonces-and-deadlines",
+          "kind": "reading",
+          "title": "Nonces and deadlines: replay protection",
+          "body": "Cryptographic signatures are deterministic \u2014 sign the same\nmessage twice, get the same signature. Without protection, an\nattacker who captured your \"buy 1 BTC at $67,000\" signature\ncould replay it tomorrow when BTC is at $50,000 and you'd be\nforced into a terrible trade.\n\nTwo mechanisms fix this:\n\n**Nonce** is a unique number per signature. The exchange tracks\nwhich nonces it's seen for your account; once consumed, that\nnonce can never be reused. Standard practice on HelloTrade is\nto use `Date.now()` (epoch milliseconds) \u2014 guaranteed unique\nwithin reasonable concurrency, doesn't require persisting state.\n\n**Deadline** is a timestamp after which the signature is no\nlonger valid. Even if no nonce is set, an attacker who replays\na stale signature past the deadline gets nothing.\n\nTogether they bound the validity window: signature is valid IFF\nnonce is fresh AND now < deadline.\n\nFor order signatures, deadlines are usually tight \u2014 minutes to\na few hours. For deposits / withdrawals, deadlines can be days.\nFor session auth, deadlines are typically session-length (e.g.\n24 hours).\n\nWhat you need to remember:\n- **Always** include a nonce + deadline.\n- Use `Date.now()` for nonces unless you have a reason not to.\n- Set deadlines as tight as your operation tolerates.\n\nWe'll cover the platform's rate limits in the next chapter; they\nwork hand-in-hand with nonces to limit replay damage.\n"
+        },
+        {
+          "id": "erc-2612-permits",
+          "kind": "reading",
+          "title": "ERC-2612 permits (gasless deposits)",
+          "body": "Depositing USDC into HelloTrade traditionally takes two\ntransactions:\n\n1. `approve()` the vault contract to pull USDC from your wallet.\n   Costs gas.\n2. `deposit()` calls the vault, which then `transferFrom()`s\n   the approved USDC. Also costs gas.\n\nThat's two on-chain transactions for one logical action.\n\n**ERC-2612 permits** collapse this into ONE. ERC-2612 is an\nextension to the ERC-20 standard that adds a `permit()` function\naccepting a SIGNED approval. Instead of calling `approve()` from\nyour wallet (paying gas), you sign an EIP-712 `Permit` struct\nand pass the signature to the deposit function. The deposit\nfunction calls `permit()` (which uses your signature to set the\nallowance) and then `transferFrom()` in the same transaction.\n\nThe signed `Permit` struct:\n\n```ts\n{\n  owner:    \"0xYOUR_WALLET\",\n  spender:  \"0xVAULT_ADDRESS\",\n  value:    \"1000000000\",          // 1000 USDC (6 decimals)\n  nonce:    permitNonce,             // ERC-20 contract's nonce, NOT yours\n  deadline: ts + 86400               // 24 hours\n}\n```\n\nThe HelloTrade deposit endpoint accepts this signature and\nhandles the entire flow on its side. From your wallet's POV:\none signature, no transactions, no gas. The exchange pays the\ngas for the actual on-chain call (and recovers it from your\ndeposit volume, presumably).\n\nUSDC, USDT, DAI, and most modern stablecoins all support ERC-2612.\n"
+        },
+        {
+          "id": "signatures-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: signatures",
+          "body": "Lock these in before we drive the API for real.\n",
+          "questions": [
+            {
+              "kind": "mcq",
+              "prompt": "Why does EIP-712 exist when we already have EIP-191?",
+              "options": [
+                "EIP-712 signatures are smaller on the wire",
+                "EIP-712 lets the wallet display a typed, human-readable view of what you're signing",
+                "EIP-712 doesn't require a chain id",
+                "EIP-191 is being deprecated"
+              ],
+              "correctIndex": 1,
+              "explanation": "EIP-712's typed schema means the wallet shows fields by name and value \u2014 no hex blob, no risk of signing something different from what was displayed."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "What two values protect a signature against replay attacks?",
+              "options": [
+                "Public key + private key",
+                "Nonce + deadline",
+                "Domain + chain id",
+                "Account + signature"
+              ],
+              "correctIndex": 1,
+              "explanation": "Nonce ensures uniqueness; deadline bounds the validity window. Both together are the defence-in-depth."
+            },
+            {
+              "kind": "short",
+              "prompt": "What ERC standard collapses approve+deposit into a single signed permit?",
+              "accept": [
+                "erc-2612",
+                "ERC-2612",
+                "erc 2612",
+                "2612",
+                "erc2612"
+              ],
+              "explanation": "ERC-2612. The classic example of \"on-chain feature that reduces UX friction in DeFi.\""
+            },
+            {
+              "kind": "mcq",
+              "prompt": "On HelloTrade, what's the standard way to generate a nonce?",
+              "options": [
+                "Random 256-bit integer",
+                "Sequential counter persisted to disk",
+                "Date.now() \u2014 epoch milliseconds",
+                "Hash of the previous signature"
+              ],
+              "correctIndex": 2,
+              "explanation": "Date.now() is unique enough at single-client concurrency, doesn't require persisted state, and is monotonically increasing so the server can spot replays cheaply."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "market-data",
+      "title": "Market data over WebSocket",
+      "lessons": [
+        {
+          "id": "websocket-101",
+          "kind": "reading",
+          "title": "WebSocket 101",
+          "body": "A **WebSocket** is a persistent bidirectional connection between\nclient and server. Open one, and either side can push messages\nat any time \u2014 no polling, no request/response cycle.\n\nThe protocol upgrade looks like a regular HTTP request that asks\nthe server to switch protocols:\n\n```\nGET /marketdata HTTP/1.1\nHost: api.staging.hello.trade\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: \u2026\nSec-WebSocket-Version: 13\n```\n\nServer responds:\n\n```\nHTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: \u2026\n```\n\nAfter that, the connection is a duplex stream of \"frames\" \u2014\ntypically text (UTF-8 strings, often JSON) but binary is supported.\n\nIn the browser:\n\n```js\nconst ws = new WebSocket(\"wss://api.staging.hello.trade/marketdata?token=\u2026\");\nws.addEventListener(\"open\",    ()  => console.log(\"connected\"));\nws.addEventListener(\"message\", (e) => console.log(\"got:\", e.data));\nws.addEventListener(\"close\",   ()  => console.log(\"disconnected\"));\nws.addEventListener(\"error\",   (e) => console.error(\"WS error:\", e));\n```\n\nTo send: `ws.send(JSON.stringify({ type: \"subscribe\", channel: \"lightTickers\" }))`.\n\nYou'll be doing exactly this in the API tester for the rest of\nthis chapter.\n\nA few pragmatic things to know:\n- Connections drop. Idle proxies, mobile network changes, server\n  restarts. Plan for a **reconnect-with-backoff** loop in production.\n- Servers often send periodic **ping** frames to keep proxies\n  from killing the connection. Reply with **pong** (the browser's\n  WebSocket implementation usually handles this transparently).\n- WebSocket frames are NOT request/response \u2014 there's no built-in\n  way to correlate a response with a specific request. If you\n  need that, include an id in your sent message and have the\n  server echo it back.\n"
+        },
+        {
+          "id": "subscribe-tickers",
+          "kind": "mixed",
+          "title": "Subscribe to live tickers",
+          "body": "In the API tester above, switch to the **WebSocket** tab and\nclick **Live tickers** in the sidebar.\n\nThe URL bar fills with the public market-data endpoint:\n\n```\nwss://api.staging.hello.trade/marketdata?token=\u2026\n```\n\n(That `token` is a public exchange identifier \u2014 not a secret.\nIt's hardcoded in the env panel as `marketDataToken`.)\n\nThe send box shows the subscribe message:\n\n```json\n{ \"type\": \"subscribe\", \"channel\": \"lightTickers\" }\n```\n\nClick **Connect**. The mock layer simulates the real server:\n\n1. A `welcome` frame arrives confirming the connection.\n2. Your subscribe frame echoes outbound (purple \u2190/\u2192 marker).\n3. A `subscribed` frame confirms.\n4. A `tickers` payload arrives with the current state of every\n   market.\n\nThe shape of the inbound `tickers` payload \u2014 `s` (symbol),\n`p` (last price), `v` (24h volume) \u2014 is intentionally compact.\nLight tickers are the \"hot\" path; the exchange compresses field\nnames to save bandwidth on a stream that fires many times per\nsecond on busy markets.\n\nTry clicking **Live mode** in the dock header and reconnecting\nto see the actual production ticker feed. You'll get hundreds\nof frames per second on a busy day.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "reading-the-orderbook",
+          "kind": "mixed",
+          "title": "Reading the order book stream",
+          "body": "Click **Order book (BTC-PERP)** in the WebSocket sidebar. The\nsubscribe message:\n\n```json\n{\n  \"type\": \"subscribe\",\n  \"channel\": \"partialOrderBook\",\n  \"market\": \"BTC-PERP\",\n  \"depth\": 10\n}\n```\n\nConnect. Two kinds of frames arrive:\n\n- A **snapshot** with the full top-N levels of the book:\n\n  ```json\n  {\n    \"type\": \"orderbook.snapshot\",\n    \"market\": \"BTC-PERP\",\n    \"bids\": [[\"67340.0\", \"0.521\"], [\"67339.5\", \"0.834\"], ...],\n    \"asks\": [[\"67340.5\", \"0.345\"], [\"67341.0\", \"0.901\"], ...],\n    \"ts\": 1730812345000\n  }\n  ```\n\n- One or more **diff** frames updating individual levels:\n\n  ```json\n  {\n    \"type\": \"orderbook.diff\",\n    \"market\": \"BTC-PERP\",\n    \"bids\": [[\"67340.0\", \"0.621\"]],\n    \"asks\": [[\"67342.5\", \"0\"]],\n    \"ts\": 1730812346000\n  }\n  ```\n\nDiffs follow these rules:\n- A non-zero size means \"the new size at this price is X\" (it\n  could be larger or smaller than before \u2014 diffs aren't deltas).\n- A zero size means \"this level is now empty; remove it from\n  your book.\"\n- New price levels just appear in a diff; you insert them.\n\nYour client maintains a local mirror of the book by applying\nthe snapshot, then folding each diff into it. If you ever\nmiss a frame, the cleanest recovery is to disconnect and let\nthe next snapshot rebuild your state.\n\nWe'll skip writing the actual mirror code (it's straightforward),\nbut watch the diff frames in the dock \u2014 you'll see the bid at\n67340.0 grow from 0.521 to 0.621, and the ask at 67342.5 disappear.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "live-trades",
+          "kind": "mixed",
+          "title": "Live trades stream",
+          "body": "Click **Live trades (BTC-PERP)** in the sidebar. Subscribe:\n\n```json\n{ \"type\": \"subscribe\", \"channel\": \"trades\", \"market\": \"BTC-PERP\" }\n```\n\nEach inbound `trade` frame:\n\n```json\n{\n  \"type\": \"trade\",\n  \"market\": \"BTC-PERP\",\n  \"side\": \"BUY\",\n  \"size\": \"0.0125\",\n  \"price\": \"67340.5\",\n  \"ts\": 1730812345000\n}\n```\n\nThree trades arrive in quick succession. Each one represents an\nactual matched fill on the exchange. The `side` field reports\nthe AGGRESSIVE side \u2014 the order that hit the book is the side\nlisted. So a `BUY` trade means a buy crossed the spread to\nmatch a resting ask; a `SELL` means a sell hit a resting bid.\n\nThis is the rawest stream of \"what's happening\" on the market.\nYou can:\n- Compute volume-weighted average price (VWAP) over a window.\n- Detect liquidations (large prints with no preceding order\n  book activity from your subscriber).\n- Trigger your strategy on tape patterns (a sudden burst of\n  one-sided trades often precedes a price move).\n\nThe trades stream pairs naturally with the candles stream \u2014\ntrades are the raw data from which OHLCV bars are computed.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "candles",
+          "kind": "mixed",
+          "title": "Candles (OHLCV)",
+          "body": "Candles are time-bucketed summaries of the trades stream. Each\ncandle covers an interval (1m, 5m, 1h, \u2026) and carries:\n\n- **Open** \u2014 first trade price in the interval.\n- **High** \u2014 highest trade price.\n- **Low** \u2014 lowest trade price.\n- **Close** \u2014 last trade price.\n- **Volume** \u2014 total quantity traded in the interval.\n\nCandles are the standard input to charting libraries and to most\ntechnical-analysis indicators (moving averages, RSI, MACD, etc).\n\nTwo ways to get candles on HelloTrade:\n\n1. **Historical (REST)**: `GET /api/candles?market=BTC-PERP&interval=1m&limit=100`.\n   You'll hit this in chapter 7 \u2014 it's how a chart loads its\n   initial backfill on page load.\n2. **Live (WebSocket)**: subscribe to the `candles` channel.\n   Each new bar is published when the interval rolls; the\n   current bar's running OHLCV is republished as it updates.\n\nClick **Live candles (BTC-PERP)** in the sidebar. The subscribe\nmessage specifies both market AND interval:\n\n```json\n{ \"type\": \"subscribe\", \"channel\": \"candles\", \"market\": \"BTC-PERP\", \"interval\": \"1m\" }\n```\n\nThe first frame contains the latest 1m bar. In a real session,\nnew frames would arrive once per minute (or sooner if you\nsubscribed to a smaller interval).\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "funding-and-mark-streams",
+          "kind": "reading",
+          "title": "Funding rates and mark prices over WS",
+          "body": "Two more market-data channels worth knowing:\n\n**`fundingRates`** \u2014 published every funding tick (typically\nevery 8 hours). The frame carries the rate that was just charged\nplus the next predicted rate based on current order flow:\n\n```json\n{\n  \"type\": \"fundingRate\",\n  \"market\": \"BTC-PERP\",\n  \"rate\":  \"0.00012\",\n  \"nextRate\": \"0.00009\",\n  \"nextFundingMs\": 1730841600000\n}\n```\n\nIf you're holding leveraged positions overnight, your bot should\nsubscribe to this and either close before adverse funding or\nflip sides if the rate justifies it.\n\n**`markPrices`** \u2014 pushed continuously as the underlying index\nmoves. Same shape as the REST `mark-prices` endpoint:\n\n```json\n{\n  \"type\": \"markPrice\",\n  \"market\": \"BTC-PERP\",\n  \"indexPrice\": \"67340.12\",\n  \"markPrice\":  \"67342.85\"\n}\n```\n\nWhy subscribe to mark when you already have the trades stream?\nTwo reasons:\n- Mark price is what your liquidation engine watches. Knowing\n  the live mark lets your client compute distance-to-liquidation\n  in real time.\n- During illiquid periods (e.g. weekend nights), mark price can\n  move via the index even when there are no trades on the perp.\n  Subscribing to mark catches those moves.\n\nBoth channels are public \u2014 no auth required.\n"
+        },
+        {
+          "id": "market-data-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: market data",
+          "body": "Some of this overlaps with what you saw in the dock.\n",
+          "questions": [
+            {
+              "kind": "mcq",
+              "prompt": "What does a `partialOrderBook` snapshot frame contain?",
+              "options": [
+                "Just the best bid and ask",
+                "The top N levels of bids + asks",
+                "Every level of the book",
+                "All trades in the last minute"
+              ],
+              "correctIndex": 1,
+              "explanation": "`depth` controls N. The full book is too big to push on every diff; partial-book streams are the normal path."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "In an order book diff frame, a price level with size = 0 means:",
+              "options": [
+                "The level was added at zero size (a placeholder)",
+                "The level was removed from the book",
+                "An error occurred at that level",
+                "The level matched a trade at that price"
+              ],
+              "correctIndex": 1,
+              "explanation": "Size 0 = remove the level. Non-zero = set the new size at that level."
+            },
+            {
+              "kind": "short",
+              "prompt": "Which 5 fields make up a candle (OHLCV)? List the 5 letters.",
+              "accept": [
+                "ohlcv",
+                "OHLCV",
+                "o h l c v",
+                "open high low close volume"
+              ],
+              "explanation": "Open, High, Low, Close, Volume. Standard everywhere."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "Why subscribe to the markPrices stream instead of just trades?",
+              "options": [
+                "Mark prices have lower latency than trades",
+                "The trades stream is paid; mark prices are free",
+                "Mark price is what your liquidation engine watches; the trades stream alone misses moves driven by the external index",
+                "Mark prices include liquidation fees"
+              ],
+              "correctIndex": 2,
+              "explanation": "Mark = manipulation-resistant blend, anchored to the index. Your survival math should track it, not last price."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trading",
+      "title": "Trading via WebSocket",
+      "lessons": [
+        {
+          "id": "trading-ws-overview",
+          "kind": "reading",
+          "title": "The trading WebSocket",
+          "body": "Market data has a separate WebSocket from the trading WebSocket:\n\n- `wss://api.staging.hello.trade/marketdata` \u2014 public, no auth.\n- `wss://api.staging.hello.trade/ws` \u2014 private, requires an\n  authenticated session.\n\nWhy two? Performance and security. The marketdata feed is\nhigh-throughput and 99% read-only \u2014 it can scale horizontally\nand serve millions of subscribers. The trading feed handles per-\naccount writes, has strict rate limits, and needs the full\nsignature-verification path on every frame.\n\nThe trading WS handshake:\n\n1. Open the WS connection.\n2. Send `{\"type\": \"authenticate\", \"signature\": {...}}`. The\n   server verifies your EIP-191 signature.\n3. Once authenticated, the server marks the connection as\n   \"session = X for account Y\".\n4. Send `{\"type\": \"subscribeTrading\"}` to start receiving\n   execution reports.\n5. Send order frames (place, cancel, replace, etc) as you wish.\n   Each carries its own per-frame signature.\n\nThat's the whole shape. The next few lessons cover each step\nhands-on in the API tester.\n"
+        },
+        {
+          "id": "authenticating-ws",
+          "kind": "mixed",
+          "title": "Authenticating the trading WS",
+          "body": "In the API tester's WebSocket tab, click **Authenticate session**.\n\nThe frame:\n\n```json\n{\n  \"type\": \"authenticate\",\n  \"signature\": {\n    \"sig\": \"<eip191-sig>\",\n    \"payload\": \"<hex-payload>\"\n  }\n}\n```\n\nThe `payload` here is hex-encoded:\n\n```\n[1 byte type][abi.encode(SimpleSignature)]\n```\n\nWhere `type` is the discriminator byte (2 for SimpleSignature)\nand the `SimpleSignature` struct is:\n\n```js\n{\n  account:  \"0xYOUR_WALLET\",\n  nonce:    1730812345000,\n  deadline: 1730898745000   // 24 hours later\n}\n```\n\nThe discriminator byte prevents one signature from being valid\nacross multiple operation types \u2014 even if an attacker could\ntrick you into signing the same hash for two different\noperations, the type byte would diverge.\n\nClick **Connect**. In mock mode you get an `INVALID_SIGNATURE`\nerror (we can't fake a real wallet sig). In a real client you'd\nplug your wallet's `signMessage` output into `sig` and the\nhex-encoded payload into `payload`.\n\nOnce authenticated, the connection holds your session for the\n24-hour deadline. You can send any number of trade ops without\nre-signing the auth.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "subscribe-trading",
+          "kind": "mixed",
+          "title": "Subscribe to execution reports",
+          "body": "Authentication only opens the door \u2014 to receive notifications\nabout your orders + fills, you also have to subscribe.\n\nClick **Subscribe to execution reports**:\n\n```json\n{ \"type\": \"subscribeTrading\" }\n```\n\nOnce subscribed, you start receiving server-pushed events for:\n\n- **Order events** \u2014 `orderAccepted`, `orderFilled`,\n  `orderCancelled`, `orderRejected`, etc.\n- **Trade events** \u2014 every execution that involves your account.\n- **Margin events** \u2014 deposits, withdrawals, leverage updates.\n- **Liquidation events** \u2014 if your account ever gets liquidated,\n  you'll see it here.\n- **Funding events** \u2014 every funding tick that touches your\n  positions, with the dollar amount paid or received.\n\nEach event has a stable `type` field plus a payload specific to\nthat event. Your client should switch on `type` and route to the\nright handler.\n\nA typical bot's main loop:\n1. Subscribe to market data on one connection.\n2. Authenticate + subscribe to execution reports on the other.\n3. Local strategy logic decides when to send orders.\n4. Order confirmations come back as execution reports \u2014 update\n   local state.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "place-an-order",
+          "kind": "mixed",
+          "title": "Place a limit order",
+          "body": "The fun one. Click **Place limit order** in the sidebar:\n\n```json\n{\n  \"type\": \"placeOrder\",\n  \"signature\": {\n    \"sig\": \"<eip712-sig>\",\n    \"payload\": \"<hex-order-payload>\"\n  }\n}\n```\n\nThe `payload` is the hex-encoded `Order` struct from chapter 4\n(account, market, size, limitPrice, nonce, deadline, flags) with\nthe type discriminator byte 0 prepended.\n\nA few details on the fields:\n- **`size`** is a signed integer. Positive = long (buy);\n  negative = short (sell). Note the units: `int256` raw integer\n  scaled to the market's `baseDecimals` from the instruments\n  endpoint. For BTC-PERP (baseDecimals = 8), `1.0 BTC = 100000000`.\n- **`limitPrice`** is `uint256` scaled to `quoteDecimals`. For\n  BTC-PERP (quoteDecimals = 6), `$67000.00 = 67000000000`.\n- **`flags`** is a bit-packed integer holding TIF + STP + post-only\n  + reduce-only + other modifiers. Each flag has its own bit\n  position; see the docs for the canonical layout.\n\nFor mock mode, the connect button + auto-send shows the wire\nshape but the server rejects (no real sig). The contract you\njust built \u2014 `type` + `signature.payload` + `signature.sig` \u2014\nis exactly what your real bot would emit.\n\nSanity check before signing in production:\n- nonce is unique\n- deadline is in the future\n- size + price are scaled to the right decimals\n- account matches the authenticated session\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "cancel-and-replace",
+          "kind": "mixed",
+          "title": "Cancel and replace orders",
+          "body": "Two more order ops. Click **Cancel order** in the sidebar:\n\n```json\n{\n  \"type\": \"cancelOrder\",\n  \"signature\": {\n    \"sig\": \"<eip712-sig>\",\n    \"payload\": \"<hex-cancel-payload>\"\n  }\n}\n```\n\nThe `OrderCancel` struct (discriminator byte 1):\n\n```ts\n{\n  account:  \"0xYOUR_WALLET\",\n  orderId:  \"ord_8FQp2\",          // returned in the orderAccepted event\n  nonce:    Date.now(),\n  deadline: ts + 60                // tight \u2014 cancel should be fast\n}\n```\n\nA successful cancel bounces back as an `orderCancelled`\nexecution report. If the order had partially filled before the\ncancel landed, the partial fill stays \u2014 only the unfilled\nremainder is cancelled.\n\n**Replace** is a logical \"modify\": cancel the existing order +\nplace a new one in a single signed atomic op. Useful when you're\nadjusting price on a resting limit and don't want a window where\nneither order is live.\n\nThe replace shape isn't a separate frame type on HelloTrade \u2014\nit's a `placeOrder` with a `replaceOrderId` field set. The\nmatching engine cancels the named order and replaces it with the\nnew one in one atomic step.\n\n```js\n{\n  type: \"placeOrder\",\n  signature: { sig, payload }, // standard place sig\n  replaceOrderId: \"ord_8FQp2\",\n}\n```\n\nFor high-frequency strategies (market makers especially),\nreplaces are the workhorse \u2014 your quotes update on every order\nbook tick.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "execution-reports",
+          "kind": "reading",
+          "title": "Reading execution reports",
+          "body": "Once you've subscribed to trading events, you'll see frames flow\nin for every change to your orders + positions. The shapes you'll\nencounter most often:\n\n**`orderAccepted`** \u2014 the engine accepted your order:\n\n```json\n{\n  \"type\":   \"orderAccepted\",\n  \"orderId\": \"ord_8FQp2\",\n  \"market\":  \"BTC-PERP\",\n  \"side\":    \"BUY\",\n  \"size\":    \"0.0100\",\n  \"price\":   \"66400.00\",\n  \"ts\":      1730812345000\n}\n```\n\n**`orderFilled`** \u2014 full or partial fill:\n\n```json\n{\n  \"type\":      \"orderFilled\",\n  \"orderId\":   \"ord_8FQp2\",\n  \"fillSize\":  \"0.0050\",\n  \"fillPrice\": \"66401.50\",\n  \"remaining\": \"0.0050\",\n  \"ts\":        1730812346000\n}\n```\n\nIf `remaining` is \"0\", the order is fully done. Otherwise it\nstays on the book.\n\n**`orderRejected`** \u2014 the engine refused:\n\n```json\n{\n  \"type\":   \"orderRejected\",\n  \"code\":   \"PRICE_TOO_FAR_FROM_MARK\",\n  \"message\": \"Limit price 100000.00 is more than 5% from mark 67340.50\"\n}\n```\n\nCommon rejection codes: `INSUFFICIENT_MARGIN`,\n`INVALID_PRICE` (off-tick), `INVALID_NONCE`,\n`SIGNATURE_EXPIRED`, `MARKET_CLOSED`.\n\n**`positionUpdate`** \u2014 your net position changed:\n\n```json\n{\n  \"type\":         \"positionUpdate\",\n  \"market\":       \"BTC-PERP\",\n  \"size\":         \"0.0100\",\n  \"avgEntry\":     \"66400.00\",\n  \"leverage\":     10,\n  \"unrealizedPnl\": \"12.50\"\n}\n```\n\nYour client's \"is my order live?\" / \"what's my P&L?\" UI is\nentirely driven by these frames. Keep a local order/position\nstate mirror updated from them; never poll REST in a hot loop\nfor state you can subscribe to.\n"
+        },
+        {
+          "id": "market-maker-sketch",
+          "kind": "mixed",
+          "title": "Sketch: a tiny market maker",
+          "body": "Putting the chapter together \u2014 the architecture of a simple\nmarket-making bot:\n\n```\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 marketdata WS      \u2502 \u2500\u2500\u2500\u2500\u2500\u2192  \u2502 Local orderbook  \u2502\n\u2502  partialOrderBook  \u2502         \u2502   mirror         \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                        \u2502\n                                        \u25bc\n                               \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                               \u2502 Quote calculator \u2502\n                               \u2502 (top of book \u00b1   \u2502\n                               \u2502  spread / 2)     \u2502\n                               \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                        \u2502 desired bid + ask\n                                        \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 trading WS         \u2502 \u2190\u2500\u2500\u2500\u2500\u2500  \u2502 Order placement  \u2502\n\u2502  authenticate      \u2502         \u2502 logic \u2014 replace  \u2502\n\u2502  placeOrder        \u2502         \u2502 orders when      \u2502\n\u2502  cancelOrder       \u2502 \u2500\u2500\u2500\u2500\u2500\u2192  \u2502 desired \u2260 live   \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n          \u2502\n          \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Execution reports  \u2502\n\u2502  \u2192 update local    \u2502\n\u2502    order state     \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```\n\nWhat you'd write to actually deploy this:\n\n1. **Two WS connections.** marketdata for the book, trading for\n   your orders.\n2. **Local book mirror.** Apply snapshots + diffs as we covered\n   in chapter 5.\n3. **Quote logic.** \"I want a bid 5 ticks below the best bid and\n   an ask 5 ticks above the best ask, each sized at 0.01 BTC.\"\n4. **State diff.** Compare desired quotes with currently-live\n   orders. If desired != live, send a replace.\n5. **Risk guards.** Stop quoting if your inventory crosses a\n   threshold. Pause on funding announcements. Bail on\n   high-volatility windows.\n6. **Reconnect logic.** Both sockets need backoff retry; trading\n   WS needs to re-authenticate after reconnect.\n\nThis isn't actually a profitable strategy without real edge \u2014\nmarket making is hard and you'd lose money against actual flow.\nBut the SHAPE is the universal market-maker shape. Real strategies\nbuild on top of this scaffold with smarter quote-pricing,\ninventory management, and adverse-selection protection.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "trading-quiz",
+          "kind": "quiz",
+          "title": "Checkpoint: trading flow",
+          "body": "Last quiz before REST.\n",
+          "questions": [
+            {
+              "kind": "mcq",
+              "prompt": "What's the order of operations to start trading on the WebSocket?",
+              "options": [
+                "Subscribe \u2192 Authenticate \u2192 Place order",
+                "Place order \u2192 Authenticate \u2192 Subscribe",
+                "Authenticate \u2192 Subscribe \u2192 Place order",
+                "Connect \u2192 Place order (no auth needed for staging)"
+              ],
+              "correctIndex": 2,
+              "explanation": "Connect \u2192 authenticate \u2192 subscribeTrading \u2192 then send order frames. The auth establishes the session, the subscribe opens the execution-report channel."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "An `orderFilled` event reports `fillSize: 0.0050, remaining: 0.0050`. Your order:",
+              "options": [
+                "Is fully done; no further fills will arrive",
+                "Was rejected and never matched",
+                "Has half-filled and is still resting on the book for the remainder",
+                "Was modified to a smaller size"
+              ],
+              "correctIndex": 2,
+              "explanation": "remaining > 0 means the order is still live. Another fill or your cancel will close it out."
+            },
+            {
+              "kind": "short",
+              "prompt": "What field do you set in a `placeOrder` to atomically swap an existing order for a new one?",
+              "accept": [
+                "replaceOrderId",
+                "replaceOrderID",
+                "replaceorderid"
+              ],
+              "explanation": "`replaceOrderId`. The engine cancels + replaces in a single signed op \u2014 no \"no order live\" gap."
+            },
+            {
+              "kind": "mcq",
+              "prompt": "If the trading WS disconnects, what should your client do?",
+              "options": [
+                "Wait for the server to reconnect you",
+                "Reconnect with backoff, re-authenticate, and re-subscribe to trading",
+                "Switch to REST polling permanently",
+                "Cancel all orders via REST then start fresh"
+              ],
+              "correctIndex": 1,
+              "explanation": "Auth and subscriptions are per-connection. The server doesn't remember your session across reconnects."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rest-and-capstone",
+      "title": "REST API and a capstone",
+      "lessons": [
+        {
+          "id": "rest-vs-ws",
+          "kind": "reading",
+          "title": "When to use REST instead of WebSocket",
+          "body": "Most live data on HelloTrade comes over WebSocket \u2014 it's faster\nand more efficient for high-frequency updates. So why does the\nREST API exist at all?\n\nREST shines for:\n\n- **One-shot lookups.** \"What instruments exist?\" \"What are the\n  current funding rates?\" Those are GET requests you call once\n  on startup, not subscriptions.\n- **Historical data.** Backfill the last 100 candles before your\n  WebSocket starts streaming new ones. Pull historical funding\n  rates to compute carry estimates.\n- **Account state at a point in time.** If you just want a\n  current balance + position snapshot without subscribing to\n  the stream, REST is simpler.\n- **Mutations that need atomicity.** Deposit and withdraw are\n  REST POSTs because they involve on-chain transfers; the\n  request/response cycle maps cleanly.\n\nRule of thumb:\n- **Read once \u2192 REST.**\n- **Read continuously \u2192 WebSocket.**\n- **Write \u2192 REST or WS depending on the operation.** Trading\n  ops go via WS for low latency. Margin ops go via REST.\n\nThe next two lessons cover the public + authenticated REST\nendpoints in turn.\n"
+        },
+        {
+          "id": "rest-public-endpoints",
+          "kind": "mixed",
+          "title": "Public REST endpoints",
+          "body": "Switch the API tester to the **REST** tab. Several public\nendpoints in the sidebar need no signature:\n\n**`GET /api/instruments`** \u2014 every tradable market with its\nmetadata. This is what your client hits on startup to populate\nits trading dropdown:\n\n```json\n[\n  { \"symbol\": \"BTC-PERP\", \"type\": \"PERP\", \"tickSize\": \"0.5\",\n    \"lotSize\": \"0.0001\", \"maxLeverage\": 50, \"isActive\": true },\n  \u2026\n]\n```\n\n**`GET /api/markets`** \u2014 numeric market ids and decimal places.\nYour order signatures need the numeric `market` field; this is\nwhere you map from symbol to id:\n\n```json\n[\n  { \"id\": 8, \"symbol\": \"BTC-PERP\", \"baseDecimals\": 8, \"quoteDecimals\": 6 },\n  \u2026\n]\n```\n\n**`GET /api/tickers`** \u2014 last price + 24h stats for every market.\nUse this for a market-overview UI on first paint:\n\n```json\n[\n  { \"symbol\": \"BTC-PERP\", \"last\": \"67342.50\",\n    \"change24h\": \"+1.84%\", \"volume24h\": \"8421.5\", \u2026 },\n  \u2026\n]\n```\n\n**`GET /api/candles?market=BTC-PERP&interval=1m&limit=100`** \u2014\nhistorical OHLCV. The query params control which market and\nhow many bars back. Try changing the `interval` to `1h` or the\n`limit` to 200 and re-sending.\n\n**`GET /api/funding-rates?market=BTC-PERP&limit=24`** \u2014 last 24\nhours of hourly funding marks. Useful for carry calculations\nor showing a funding history chart.\n\nClick around. Each one returns canned-but-realistic JSON in\nmock mode; toggle Live mode for real numbers.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "rest-account-snapshot",
+          "kind": "mixed",
+          "title": "Account snapshot via REST",
+          "body": "The first authenticated endpoint. Click **Account snapshot** in\nthe sidebar:\n\n```\nGET {{baseUrl}}/api/account\n```\n\nIn real production:\n- The request needs an `X-Signature` header carrying your\n  EIP-191 signature.\n- An `X-Payload` header carries the hex-encoded\n  SimpleSignaturePayload.\n\nIn mock mode you'll get a 401 because we can't fake a real sig.\nToggle Live mode if you've got a wallet hooked up; otherwise\nlook at the response as a contract example.\n\nThe expected 200 response (visible in the mock layer's\n\"successful\" branch when sigs check out):\n\n```json\n{\n  \"account\": \"0xa1B2c3D4E5F60718\u2026\",\n  \"collateral\": {\n    \"asset\": \"USDC\",\n    \"balance\":   \"12450.000000\",\n    \"available\": \"8200.500000\"\n  },\n  \"positions\": [\n    {\n      \"market\":       \"BTC-PERP\",\n      \"size\":         \"0.0500\",\n      \"entryPrice\":   \"66400.00\",\n      \"markPrice\":    \"67342.85\",\n      \"unrealizedPnl\": \"+47.14\",\n      \"leverage\":      10\n    }\n  ],\n  \"openOrders\": [\n    {\n      \"orderId\":   \"ord_8FQp2\",\n      \"market\":    \"BTC-PERP\",\n      \"side\":      \"BUY\",\n      \"type\":      \"LIMIT\",\n      \"size\":      \"0.0100\",\n      \"price\":     \"66000.00\",\n      \"filled\":    \"0.0000\",\n      \"status\":    \"OPEN\"\n    }\n  ]\n}\n```\n\nThat's enough to fully populate your client's home screen on\nboot \u2014 balance, positions, open orders, all from one call.\nAfter this snapshot, you'd switch to the WebSocket execution-\nreports stream for live updates.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "rest-deposit",
+          "kind": "mixed",
+          "title": "Depositing USDC",
+          "body": "**Click `Deposit USDC` in the sidebar.** Method is POST, URL is\n`{{baseUrl}}/api/deposit`, body is a JSON object with a permit-\nbased signature.\n\n```json\n{\n  \"account\":  \"0xYOUR_WALLET\",\n  \"amount\":   \"1000000000\",       // 1000 USDC (6 decimals)\n  \"nonce\":    1,                   // ERC-20 contract nonce\n  \"deadline\": 1733404345,          // unix seconds\n  \"signature\": {\n    \"sig\":     \"<eip712-sig>\",\n    \"payload\": \"<hex-permit-payload>\"\n  }\n}\n```\n\nThe signature is over an EIP-712 `Permit` struct (chapter 4\ncovered this). The exchange's deposit handler:\n\n1. Verifies your sig matches the permit struct.\n2. Calls `permit()` on the USDC contract to set its allowance.\n3. Calls `transferFrom()` to pull the USDC into the vault.\n4. Credits your HelloTrade collateral balance.\n\nAll of those happen in ONE on-chain transaction, paid by the\nexchange. From your wallet's POV: one signature, no gas.\n\nIn mock mode, sending the request returns a `201 Created`:\n\n```json\n{\n  \"depositId\": \"dep_a1b2c3d4\",\n  \"status\":    \"pending\",\n  \"receivedAt\": \"2026-05-09T13:30:00.000Z\"\n}\n```\n\nThe `pending` status indicates the on-chain settlement is in\nflight. A subsequent `WebSocket margin event` (subscribed via\ntrading WS) will fire `marginCredited` once the chain confirms.\nTime-to-confirm depends on the chain (typically a few seconds\non a high-throughput L2).\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "rest-withdraw",
+          "kind": "mixed",
+          "title": "Withdrawing USDC",
+          "body": "The mirror operation. Click **Withdraw USDC**:\n\n```\nPOST {{baseUrl}}/api/withdraw\n```\n\nBody:\n\n```json\n{\n  \"account\":  \"0xYOUR_WALLET\",\n  \"amount\":   \"500000000\",         // 500 USDC\n  \"nonce\":    Date.now(),\n  \"deadline\": ts + 86400,\n  \"signature\": {\n    \"sig\":     \"<eip712-sig>\",\n    \"payload\": \"<hex-withdraw-payload>\"\n  }\n}\n```\n\nThe signature is over an EIP-712 `Withdrawal` struct\n(discriminator byte 3) \u2014 this is YOUR signature authorising\nthe exchange to release funds to your wallet.\n\nImportant: withdrawal authorisations have a **deadline** that\ngates how long they're valid. Once you sign, the exchange has\nuntil the deadline to process. After that, your sig is dead and\nyou'd need to re-sign. This protects you against the exchange\nsitting on your withdrawal indefinitely while attempting to\nfront-run your other actions.\n\nMock response:\n\n```json\n{\n  \"withdrawalId\":         \"wd_e5f6g7h8\",\n  \"status\":               \"queued\",\n  \"estimatedSettlementMs\": 2400\n}\n```\n\n`status: queued` means the off-chain processing started; a\n`marginDebited` event over the trading WS confirms the\ncollateral debit. Then a follow-up event when the on-chain\ntransfer to your wallet settles.\n\nWithdrawals can be larger than your `available` balance only if\nthey wouldn't liquidate any open positions. The exchange checks\nmaintenance margin before approving \u2014 if withdrawing would push\nyou below it, you get a `WITHDRAWAL_BLOCKED_BY_MARGIN` error.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "error-codes-and-retries",
+          "kind": "reading",
+          "title": "Error codes, rate limits, and retries",
+          "body": "Every endpoint can fail. Knowing how each error means + what to\ndo about it is the difference between a robust client and one\nthat hangs at 3am.\n\nCommon errors and recommended responses:\n\n- **`401 INVALID_SIGNATURE`** \u2014 your signature didn't verify.\n  Check your nonce isn't reused, the deadline isn't past, the\n  domain matches the environment (staging vs production), and\n  the struct fields match what you signed.\n- **`429 RATE_LIMITED`** \u2014 slow down. Wait at least the\n  `Retry-After` header's value before retrying. The platform\n  enforces per-account rate caps; bursting through them gets\n  your IP cooled off.\n- **`422 INVALID_NONCE`** \u2014 the nonce was already used or is in\n  the past. Use `Date.now()` and ensure each request gets a\n  fresh value.\n- **`410 SIGNATURE_EXPIRED`** \u2014 deadline passed. Re-sign with a\n  fresh deadline.\n- **`403 INSUFFICIENT_MARGIN`** \u2014 your collateral doesn't cover\n  the requested operation. Add margin, reduce size, or close\n  other positions.\n- **`5xx`** \u2014 server side. Retry with exponential backoff. If\n  the operation was idempotent (GETs always are; some POSTs are\n  marked idempotent in the docs), it's safe to retry blindly.\n  For non-idempotent POSTs (placeOrder, deposit), check the\n  account state via REST before retrying to avoid duplicates.\n\nA retry policy that works in practice:\n- Initial backoff: 100ms\n- Max attempts: 5\n- Backoff multiplier: 2x with \u00b120% jitter\n- Hard cap: 30s\n- For 4xx errors, DON'T retry \u2014 the request is broken; fix it\n  and try again manually.\n- For 5xx and network errors, retry per the policy above.\n\nDon't blindly retry on 401/422/410 \u2014 those mean your client\nstate is stale (nonce reused, deadline expired). Refresh the\nstate first.\n"
+        },
+        {
+          "id": "capstone-a-complete-client",
+          "kind": "mixed",
+          "title": "Capstone: a complete client",
+          "body": "This is the architecture of a complete HelloTrade client. Below\nis what the bootstrapping flow looks like. Use the API tester\nto verify each step.\n\n**On startup (REST):**\n\n1. `GET /api/instruments` \u2014 populate market dropdown.\n2. `GET /api/markets` \u2014 get numeric market ids for order sigs.\n3. `GET /api/tickers` \u2014 first paint of the market overview.\n4. `GET /api/candles?market=DEFAULT&limit=200` \u2014 backfill chart.\n5. `GET /api/account` (signed) \u2014 load balance + positions +\n   open orders.\n\n**Then, two WebSockets:**\n\n6. Connect to `/marketdata` (no auth):\n   - `subscribe lightTickers` for the market overview.\n   - `subscribe partialOrderBook` for the active market's book.\n   - `subscribe trades` for the tape.\n   - `subscribe candles` for live bars.\n7. Connect to `/ws` (auth required):\n   - `authenticate` with EIP-191 sig.\n   - `subscribeTrading` for execution reports.\n\n**Then, normal operation:**\n\n- User clicks Buy \u2192 sign EIP-712 Order, send via trading WS.\n- Receive `orderAccepted` \u2192 mark order as live in local state.\n- Receive `orderFilled` \u2192 update position; if fully filled,\n  remove from open-orders list.\n- Periodically receive `fundingPaid` events and adjust P&L.\n\n**On disconnect (either WS):**\n\n- Mark connection state.\n- Reconnect with exponential backoff (start at 250ms, cap at 10s).\n- On marketdata: re-subscribe to all channels you had open.\n- On trading: re-authenticate (your previous session is dead),\n  then re-subscribe.\n\n**On error:**\n\n- 401/422/410 \u2192 re-derive your nonce / re-sign / re-auth as\n  appropriate. Never retry the same request.\n- 429 \u2192 backoff per Retry-After.\n- 5xx \u2192 exponential backoff retry.\n\nThat's the complete shape. From here, the differentiation\nbetween clients is in:\n- **UI** \u2014 chart, order entry, portfolio view.\n- **Strategy** \u2014 manual UI vs. automated bot vs. market maker.\n- **Risk management** \u2014 pre-trade size limits, post-trade\n  position limits, kill switches.\n\nSpend a few minutes hitting each of the bootstrapping endpoints\nin the dock above. The shapes you've seen across all 7 chapters\nare the entire surface area you need to build a real client on\nHelloTrade.\n",
+          "language": "javascript",
+          "starter": "// This lesson's interactive surface is the API Tester above.\n// Run this when you're done \u2014 it just confirms you reached the lesson.\nconsole.log('Switch to the API Tester above to follow this lesson.');\n",
+          "solution": "console.log('Switch to the API Tester above to follow this lesson.');\n",
+          "tests": "// Trivial test \u2014 the lesson is dock-driven, not run-driven.\ntest('reached the lesson', () => {\n  expect(true).toBe(true);\n});\n",
+          "harness": "trade"
+        },
+        {
+          "id": "where-to-go-next",
+          "kind": "reading",
+          "title": "Where to go next",
+          "body": "You now know enough to:\n\n- Read and contribute to a HelloTrade client codebase.\n- Build a market-data dashboard with the public WS feed.\n- Authenticate with a wallet and place / cancel signed orders.\n- Compute liquidation prices, funding accruals, and unrealized\n  P&L from raw market data.\n- Recover from disconnects, signature expirations, and rate-limit\n  bumps.\n\nSome places to point yourself next:\n\n**The official SDK.** As of writing, HelloTrade is shipping an\nofficial client SDK that wraps signature creation, payload\nencoding, and the WebSocket reconnect loop. When it lands, much\nof what you hand-rolled in chapter 4-6 becomes a one-line call.\nKeep an eye on the `developer-tools/sdk` page in the docs.\n\n**The reference implementation.** The HelloTrade docs include\nTypeScript snippets for every operation in this course. Pull\nthem into a small project and wire up a real wallet (testnet\nUSDC is plenty for learning).\n\n**Open-source clients.** Search \"hellotrade\" on GitHub for\ncommunity implementations in TypeScript, Python, and Rust.\nReading existing code is the fastest way to internalise the\npatterns.\n\n**Testnet faucets.** Don't trade real money learning. Use the\nstaging environment at `*.staging.hello.trade` with testnet\nUSDC. The exchange's docs list current faucet links.\n\n**Risk discipline.** None of this course is investment advice.\nLeverage cuts both ways and decentralised exchanges have\nliquidation engines that don't pause for your bad day. Start\nsmall, paper-trade a strategy before deploying capital, and\ncap your downside per trade to a percentage of your account\nyou can lose without it changing your mood.\n\nGood luck. You've got the tools.\n"
+        }
+      ]
+    }
+  ]
+}

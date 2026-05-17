@@ -53,7 +53,10 @@ fn sandbox_root() -> anyhow::Result<PathBuf> {
     let docs = dirs::document_dir()
         .or_else(dirs::home_dir)
         .ok_or_else(|| anyhow::anyhow!("could not resolve Documents directory"))?;
-    let root = docs.join("Libre Sandbox");
+    // Profile-scoped: `<Documents>/Libre Sandbox/<active-profile>/`.
+    // `sandbox_root()` has no `AppHandle`, so the active id comes
+    // from the process-global the profiles module owns.
+    let root = crate::profiles::sandbox_profile_root(&docs);
     if !root.exists() {
         fs::create_dir_all(&root)?;
     }

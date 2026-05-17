@@ -8,13 +8,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tauri::Manager;
-
 fn cache_dir_for(app: &tauri::AppHandle, book_id: &str) -> anyhow::Result<PathBuf> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("app_data_dir: {e}"))?
+    // Profile-scoped so an interrupted AI import in one profile
+    // can't resume into / leak across another.
+    let base = crate::profiles::profile_app_root(app)?
         .join("ingest-cache")
         .join(book_id);
     fs::create_dir_all(&base)?;
@@ -60,9 +57,7 @@ pub fn cache_read(
 /// Wipe the cache for a given book (or the entire cache if `book_id` is empty).
 #[tauri::command]
 pub fn cache_clear(app: tauri::AppHandle, book_id: String) -> Result<(), String> {
-    let base = app
-        .path()
-        .app_data_dir()
+    let base = crate::profiles::profile_app_root(&app)
         .map_err(|e| e.to_string())?
         .join("ingest-cache");
     let target = if book_id.is_empty() {

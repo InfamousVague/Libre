@@ -1,0 +1,185 @@
+/* "Compile Rust locally" nudge. Same panel vocabulary as
+   SetupWizard / SignInDialog so the optional-setup modals read as
+   one family. Backdrop chrome lives in Shared/ModalBackdrop.css. */
+
+.libre-rustlocal {
+  position: relative;
+  width: min(460px, 92vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.libre-rustlocal__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--color-text-tertiary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--libre-radius-sm, 6px);
+}
+
+.libre-rustlocal__close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.libre-rustlocal__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.libre-rustlocal__blurb {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.libre-rustlocal__cmd {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  overflow-x: auto;
+}
+
+.libre-rustlocal__cmd code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.libre-rustlocal__error,
+.libre-rustlocal__output {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.libre-rustlocal__error {
+  background: rgba(239, 111, 111, 0.08);
+  border: 1px solid rgba(239, 111, 111, 0.3);
+  color: #ffb4b4;
+}
+
+.libre-rustlocal__output {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+}
+
+.libre-rustlocal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-default);
+}
+
+.libre-rustlocal__dontask {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.libre-rustlocal__dontask input {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.libre-rustlocal__btnrow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.libre-rustlocal__primary,
+.libre-rustlocal__secondary {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.libre-rustlocal__primary {
+  background: var(--color-accent);
+  color: var(--color-accent-fg, #111111);
+  border: none;
+}
+
+.libre-rustlocal__primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.libre-rustlocal__primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.libre-rustlocal__secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+}
+
+.libre-rustlocal__secondary:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.libre-rustlocal__primary:disabled,
+.libre-rustlocal__secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Mobile bottom-sheet treatment, matching SetupWizard. */
+@media (pointer: coarse) and (max-width: 768px) {
+  .libre-rustlocal {
+    width: 100vw;
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 18px 18px 0 0;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0));
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+}

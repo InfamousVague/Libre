@@ -24,6 +24,7 @@ import type {
 import { ACHIEVEMENTS, getAchievement } from "../data/achievements";
 import type { Completion } from "./storage";
 import type { Course } from "../data/types";
+import { profileKey } from "./profileStore";
 
 /// Persisted unlock record. `unlockedAt` is a Date.now() ms timestamp;
 /// we use ms (not seconds) because it's the natural format from
@@ -34,8 +35,9 @@ export interface UnlockedRecord {
   unlockedAt: number;
 }
 
-const PERSIST_KEY = "libre:achievements:unlocked";
-const STREAK_FREEZES_KEY = "libre:achievements:freezes-used";
+// Profile-scoped: each profile earns its own achievements / freezes.
+const PERSIST_KEY = profileKey("libre:achievements:unlocked");
+const STREAK_FREEZES_KEY = profileKey("libre:achievements:freezes-used");
 
 /// Snapshot the engine evaluates against. Built once per evaluation
 /// from the live progress + streak state — cheaper than walking

@@ -17,17 +17,23 @@ mod http_proxy;
 mod image_gen;
 mod ingest;
 mod ingest_cache;
-// Ledger HID transport — desktop only. iOS / Android lack USB-HID
-// access from app-sandboxed processes, and `hidapi-rs`'s build script
-// hard-fails on those targets. Gating the module here AND the
-// `hidapi` crate in Cargo.toml keeps the mobile builds clean.
+// Ledger HID transport + native haptics — desktop only. iOS /
+// Android lack USB-HID access from app-sandboxed processes, and
+// `hidapi-rs`'s build script hard-fails on those targets. A `#[cfg]`
+// attribute only applies to the single item immediately after it,
+// so EACH `mod` needs its own gate — previously the gate sat above
+// `mod haptics;` only, leaving `mod ledger;` compiled on iOS where
+// `hidapi` is excluded (E0432 + cascade). Gating each module here
+// AND the `hidapi` crate in Cargo.toml keeps the mobile builds clean.
 #[cfg(not(any(target_os = "ios", target_os = "android")))]
 mod haptics;
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 mod ledger;
 mod llm;
 mod mobile_dev;
 mod native_runners;
 mod preview_server;
+mod profiles;
 mod progress_db;
 mod sandbox;
 mod settings;
@@ -196,6 +202,13 @@ pub fn run() {
         // the update is staged. Tiny plugin, no config required.
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // MUST run first: resolves/creates the profile registry,
+            // migrates any pre-profile single-pool data into
+            // `profiles/default/`, and seeds the process-global
+            // active-profile id. Everything below resolves its paths
+            // through the active profile, so this has to win the race.
+            profiles::init(app.handle())?;
+
             let db_path = progress_db::resolve_path(app.handle())?;
             let db = progress_db::open(db_path)?;
             app.manage(db);
@@ -249,8 +262,21 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            profiles::list_profiles,
+            profiles::get_active_profile,
+            profiles::create_profile,
+            profiles::rename_profile,
+            profiles::set_profile_cloud_account,
+            profiles::delete_profile,
+            profiles::switch_profile,
             run_swift,
             start_oauth,
+            // `mod haptics` is gated out on iOS/Android (see top of
+            // file), so its command registration must carry the same
+            // gate or the handler list references an unlinked module
+            // (E0433). Same per-entry pattern the ledger::* handlers
+            // below use.
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             haptics::haptic_fire,
             progress_db::list_completions,
             progress_db::mark_completion,
@@ -318,6 +344,7 @@ pub fn run() {
             native_runners::run_scala,
             native_runners::run_dart,
             native_runners::run_zig,
+            native_runners::run_rust,
             ai_chat::ai_chat_probe,
             ai_chat::ai_chat_stream,
             ai_chat::ai_chat_install_status,

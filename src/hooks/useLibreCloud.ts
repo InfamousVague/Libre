@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { track } from "../lib/track";
+import { profileKey } from "../lib/profileStore";
+import { isWeb } from "../lib/platform";
 
 /// Optional cloud-sync hook for the Libre relay.
 ///
@@ -17,9 +19,35 @@ import { track } from "../lib/track";
 /// be overridden via the `LIBRE_RELAY_URL` Vite-time env var or
 /// localStorage so test deploys can point at a staging host.
 
-const TOKEN_KEY = "libre:cloud:token-v1";
-const USER_KEY = "libre:cloud:user-v1";
+// Profile-scoped (hybrid model): each profile holds its OWN cloud
+// session, so signing into account A under "Work" and account B
+// under "Personal" keeps the two tokens/users isolated. The relay
+// URL override is a developer/deployment preference, not per-user,
+// so it stays global — pointing at a staging relay applies to
+// every profile.
+const TOKEN_KEY = profileKey("libre:cloud:token-v1");
+const USER_KEY = profileKey("libre:cloud:user-v1");
 const URL_OVERRIDE_KEY = "libre:cloud:url-override-v1";
+
+/// Bind/unbind the active profile to a cloud account id in the
+/// backend registry (hybrid model). Best-effort + desktop-only:
+/// web has no profile registry, and a registry write failing must
+/// never block sign-in. Fire-and-forget.
+function bindProfileCloudAccount(accountId: string | null): void {
+  if (isWeb) return;
+  void (async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const active = await invoke<string>("get_active_profile");
+      await invoke("set_profile_cloud_account", {
+        id: active,
+        cloudAccountId: accountId,
+      });
+    } catch {
+      /* registry unavailable / older binary — non-fatal */
+    }
+  })();
+}
 
 const DEFAULT_RELAY_URL = "https://api.libre.academy";
 
@@ -189,6 +217,13 @@ function writeUser(u: LibreCloudUser | null): void {
     if (u) localStorage.setItem(USER_KEY, JSON.stringify(u));
     else localStorage.removeItem(USER_KEY);
   } catch { /* private mode */ }
+  // Hybrid model: keep the backend registry's record of "which
+  // cloud account is bound to the active profile" in sync. Every
+  // sign-in / sign-out / token-invalidation path funnels through
+  // writeUser, so this one hook covers them all. Fire-and-forget;
+  // a transient null during the OAuth handoff just unbinds then
+  // re-binds on /me success (idempotent, converges correctly).
+  bindProfileCloudAccount(u ? u.id : null);
 }
 function readUrlOverride(): string | null {
   try { return localStorage.getItem(URL_OVERRIDE_KEY); } catch { return null; }

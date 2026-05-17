@@ -19,6 +19,7 @@
 /// free.
 
 import { isWeb } from "./platform";
+import { profileDbName } from "./profileStore";
 import type { Course } from "../data/types";
 
 export interface Completion {
@@ -140,7 +141,10 @@ const tauriStorage: LibreStorage = {
 
 // ─── IndexedDB (web) backend ───────────────────────────────────────────
 
-const DB_NAME = "libre-v1";
+// Profile-scoped on the web build (web has the single implicit
+// Default → name stays `libre-v1`; named profiles get a suffixed
+// DB so their completions/courses don't collide).
+const DB_NAME = profileDbName("libre-v1");
 const DB_VERSION = 1;
 const STORE_COMPLETIONS = "completions";
 const STORE_COURSES = "courses";

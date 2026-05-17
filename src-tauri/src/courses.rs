@@ -36,7 +36,11 @@ pub type CourseJson = serde_json::Value;
 /// Resolve the directories we scan for courses. Currently just the app data
 /// dir's `courses/` folder; bundled defaults are copied here on first launch.
 pub fn courses_dir(app: &tauri::AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app.path().app_data_dir().map_err(|e| anyhow::anyhow!("app_data_dir: {e}"))?;
+    // Profile-scoped: <app_data>/profiles/<active>/courses. Each
+    // profile has its own installed-books library. Bundled packs
+    // (the read-only seed source under resource_dir) stay global and
+    // are re-seeded into each profile by `ensure_seed`.
+    let dir = crate::profiles::profile_app_root(app)?;
     let courses = dir.join("courses");
     fs::create_dir_all(&courses)?;
     Ok(courses)
@@ -420,11 +424,9 @@ pub fn ensure_seed(app: &tauri::AppHandle) -> anyhow::Result<()> {
 /// means we seed once more, which is still a no-op if the course dir
 /// already has the pack.
 fn marker_path(app: &tauri::AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("app_data_dir: {e}"))?;
-    fs::create_dir_all(&dir)?;
+    // Profile-scoped: pairs with the per-profile courses dir so a
+    // new profile re-seeds bundled packs independently.
+    let dir = crate::profiles::profile_app_root(app)?;
     Ok(dir.join("seeded-packs.json"))
 }
 
@@ -1240,6 +1242,18 @@ fn unzip_to(archive: &Path, courses_dir: &Path) -> anyhow::Result<String> {
     if id.is_empty() {
         anyhow::bail!("course.json not found or missing 'id' in archive");
     }
+    // SECURITY: `id` is read from the archive's own course.json — fully
+    // attacker-controlled. It's used as a directory name under
+    // `courses_dir`, so an `id` like `../../../../etc` would escape the
+    // courses dir (the first half of a zip-slip). Constrain it to a
+    // plain slug: ASCII alphanumerics plus `-` `_` `.`, no path
+    // separators, and not a `.`/`..` traversal token.
+    if id == "." || id == ".." || !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        anyhow::bail!("course id {id:?} is not a safe directory name");
+    }
 
     let dest = courses_dir.join(&id);
     if dest.exists() {
@@ -1254,6 +1268,20 @@ fn unzip_to(archive: &Path, courses_dir: &Path) -> anyhow::Result<String> {
         let name = entry.name().to_owned();
         let rel = strip_top_level(&name);
         if rel.is_empty() { continue; }
+        // SECURITY (zip-slip): `rel` is an archive-controlled path.
+        // `strip_top_level` only drops the first segment — it does NOT
+        // reject `..` or absolute components, so `wrapper/../../../x`
+        // would resolve outside `dest`. Validate every component the
+        // same way sandbox.rs::is_safe_relpath does: reject parent-dir
+        // hops, absolute roots, and Windows drive prefixes. Fail the
+        // whole import on the first hostile entry rather than skipping
+        // it — a malicious archive shouldn't be partially trusted.
+        if !is_safe_rel(&rel) {
+            anyhow::bail!(
+                "archive entry {name:?} has an unsafe path — refusing \
+                 to extract (possible zip-slip)"
+            );
+        }
         let out_path = dest.join(&rel);
         if entry.is_dir() {
             fs::create_dir_all(&out_path)?;
@@ -1268,6 +1296,31 @@ fn unzip_to(archive: &Path, courses_dir: &Path) -> anyhow::Result<String> {
         }
     }
     Ok(id)
+}
+
+/// Reject relative paths that could escape the extraction root.
+/// Mirrors the component-walk approach in `sandbox.rs::is_safe_relpath`:
+/// a path is safe iff every component is a `Normal` (or no-op `CurDir`)
+/// segment — any `ParentDir` (`..`), `RootDir` (absolute), or `Prefix`
+/// (Windows `C:`) component means the join could land outside `dest`,
+/// so the archive entry is hostile. Also rejects NUL bytes (defensive
+/// against truncation tricks on the eventual `fs::File::create`).
+fn is_safe_rel(rel: &str) -> bool {
+    use std::path::{Component, Path};
+    if rel.is_empty() || rel.contains('\0') {
+        return false;
+    }
+    let mut saw_normal = false;
+    for comp in Path::new(rel).components() {
+        match comp {
+            Component::Normal(_) => saw_normal = true,
+            Component::CurDir => {}
+            Component::ParentDir
+            | Component::RootDir
+            | Component::Prefix(_) => return false,
+        }
+    }
+    saw_normal
 }
 
 fn strip_top_level(path: &str) -> String {

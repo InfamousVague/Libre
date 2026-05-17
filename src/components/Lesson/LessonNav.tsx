@@ -41,7 +41,18 @@ interface Props {
 /// the concept name. Split on the last word (or fall back to character count)
 /// so the head can flex-shrink while the tail always stays visible, giving us
 /// middle-ellipsis: "Constructors a… Keyword".
-function splitForMiddleEllipsis(text: string): { head: string; tail: string } {
+function splitForMiddleEllipsis(
+  text: string | null | undefined,
+): { head: string; tail: string } {
+  // Defensive: `text` is typed `string`, but it's fed runtime data
+  // (`neighbors.prev/next.title` ← `findNeighbors` ← course JSON).
+  // A malformed / partially-seeded course can carry a lesson with
+  // no title, which made this `text.length` throw "undefined is
+  // not an object" and crashed the whole lesson view on open.
+  // Coerce to a safe string instead of trusting the type.
+  if (typeof text !== "string" || text.length === 0) {
+    return { head: text ?? "", tail: "" };
+  }
   const minTail = 4;
   const maxTail = 16;
   for (let i = text.length - minTail; i >= Math.max(1, text.length - maxTail); i--) {
@@ -55,10 +66,11 @@ function splitForMiddleEllipsis(text: string): { head: string; tail: string } {
   return { head: text.slice(0, -n), tail: text.slice(-n) };
 }
 
-function MiddleTitle({ text }: { text: string }) {
-  const { head, tail } = splitForMiddleEllipsis(text);
+function MiddleTitle({ text }: { text: string | null | undefined }) {
+  const safe = typeof text === "string" ? text : "";
+  const { head, tail } = splitForMiddleEllipsis(safe);
   return (
-    <span className="libre-lesson-nav-title" title={text}>
+    <span className="libre-lesson-nav-title" title={safe}>
       <span className="libre-lesson-nav-title-head">{head}</span>
       {tail && <span className="libre-lesson-nav-title-tail">{tail}</span>}
     </span>

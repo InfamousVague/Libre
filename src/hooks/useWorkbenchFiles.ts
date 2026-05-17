@@ -6,6 +6,7 @@ import type {
   MixedLesson,
 } from "../data/types";
 import { deriveStarterFiles } from "../lib/workbenchFiles";
+import { profileKey } from "../lib/profileStore";
 
 /// Per-lesson workbench persistence. Keeps the learner's in-progress code
 /// in localStorage keyed on `{courseId, lessonId}` so reopening an exercise
@@ -17,7 +18,11 @@ import { deriveStarterFiles } from "../lib/workbenchFiles";
 /// differ and we fall back to the new starter rather than rendering stale
 /// content into mismatched filenames.
 
-const STORAGE_PREFIX = "libre:workbench:v1:";
+// Profile-scoped: saved in-progress lesson code is per profile.
+// profileKey wraps the prefix; the dynamic {courseId}:{lessonId}
+// suffix is appended after, so non-default profiles get
+// `libre:p:<id>:libre:workbench:v1:<courseId>:<lessonId>`.
+const STORAGE_PREFIX = profileKey("libre:workbench:v1:");
 
 function storageKey(courseId: string, lessonId: string): string {
   return `${STORAGE_PREFIX}${courseId}:${lessonId}`;

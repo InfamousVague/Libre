@@ -25,6 +25,7 @@ import { vibrate } from "@base/primitives/icon/icons/vibrate";
 import { keyboard } from "@base/primitives/icon/icons/keyboard";
 import { settings2 } from "@base/primitives/icon/icons/settings-2";
 import { user } from "@base/primitives/icon/icons/user";
+import { users } from "@base/primitives/icon/icons/users";
 import { database } from "@base/primitives/icon/icons/database";
 import { terminal } from "@base/primitives/icon/icons/terminal";
 
@@ -40,6 +41,7 @@ export type PaneId =
   | "shortcuts"
   | "data"
   | "developer"
+  | "profiles"
   | "account";
 
 /// Top-level groupings shown as small headers in the nav rail. The
@@ -176,6 +178,24 @@ export const PANES: ReadonlyArray<PaneDef> = [
   },
 
   // ── Cloud ───────────────────────────────────────────────────────
+  {
+    id: "profiles",
+    group: "cloud",
+    label: "Profiles",
+    hint: "Separate libraries · switch · isolate",
+    icon: users,
+    searchTerms: [
+      "profile",
+      "profiles",
+      "account",
+      "switch",
+      "multiple",
+      "separate",
+      "isolate",
+      "workspace",
+      "family",
+    ],
+  },
   {
     id: "account",
     group: "cloud",

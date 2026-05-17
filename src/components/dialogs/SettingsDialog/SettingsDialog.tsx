@@ -20,6 +20,7 @@ import ModalBackdrop from "../../Shared/ModalBackdrop";
 import AccountSection from "./AccountSection";
 import AiPane from "./AiPane";
 import DeveloperPane from "./DeveloperPane";
+import ProfilesPane from "./ProfilesPane";
 import GeneralPane from "./GeneralPane";
 import ShortcutsPane from "./ShortcutsPane";
 import SoundPane from "./SoundPane";
@@ -347,6 +348,8 @@ export default function SettingsDialog({
             )}
 
             {section === "developer" && <DeveloperPane />}
+
+            {section === "profiles" && <ProfilesPane />}
 
             {section === "account" &&
               onRequestSignIn &&

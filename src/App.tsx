@@ -64,6 +64,7 @@ import { mintCertificate } from "./data/certificates";
 import { notifyCertificatesChanged } from "./hooks/useCertificates";
 import { playSound, unlockAudioContext } from "./lib/sfx";
 import { isWeb, isMobile } from "./lib/platform";
+import { consumePendingOAuthSession } from "./lib/oauthSession";
 import { isoToUnixSeconds } from "./lib/timestamps";
 import DownloadButton from "./components/DownloadButton/DownloadButton";
 import GeneratePackDialog from "./components/dialogs/ChallengePack/GeneratePackDialog";
@@ -308,9 +309,31 @@ export default function App() {
           if (host === "oauth") {
             const status = url.searchParams.get("status");
             const token = url.searchParams.get("token");
+            // SECURITY: bind the callback to the in-flight sign-in
+            // attempt. The relay round-trips the `session` nonce we
+            // generated in SignInDialog (oauth_flow.rs appends it to
+            // every return URL). Require it to match the single-use
+            // nonce we stashed — otherwise ANY process/page that emits
+            // `libre://oauth/done?status=ok&token=ATTACKER` could sign
+            // the user into an attacker's account (login-CSRF). No
+            // stashed nonce (unsolicited callback / replay) → reject.
+            const callbackSession = url.searchParams.get("session");
+            const expectedSession = consumePendingOAuthSession();
             if (status === "ok" && token) {
-              console.log("[libre] oauth callback: success");
-              void cloudRef.current.applyOAuthToken(token);
+              if (
+                !expectedSession ||
+                !callbackSession ||
+                callbackSession !== expectedSession
+              ) {
+                console.warn(
+                  "[libre] oauth callback rejected: session nonce " +
+                    "missing or mismatched — ignoring token (not from " +
+                    "an in-app sign-in this client started).",
+                );
+              } else {
+                console.log("[libre] oauth callback: success");
+                void cloudRef.current.applyOAuthToken(token);
+              }
             } else if (status === "error") {
               console.error(
                 `[libre] oauth callback: error ${url.searchParams.get("error")} — ${url.searchParams.get("message")}`,

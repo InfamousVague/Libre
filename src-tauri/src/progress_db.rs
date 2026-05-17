@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use rusqlite::{params, Connection};
 use serde::Serialize;
-use tauri::{Manager, State};
+use tauri::State;
 
 pub struct ProgressDb(pub Mutex<Connection>);
 
@@ -21,8 +21,8 @@ pub struct Completion {
     pub completed_at: i64,
 }
 
-pub fn open(db_path: PathBuf) -> anyhow::Result<ProgressDb> {
-    let conn = Connection::open(&db_path)?;
+fn open_conn(db_path: &PathBuf) -> anyhow::Result<Connection> {
+    let conn = Connection::open(db_path)?;
     conn.execute_batch(
         r#"
         PRAGMA journal_mode = WAL;
@@ -36,18 +36,39 @@ pub fn open(db_path: PathBuf) -> anyhow::Result<ProgressDb> {
         );
         "#,
     )?;
-    Ok(ProgressDb(Mutex::new(conn)))
+    Ok(conn)
+}
+
+pub fn open(db_path: PathBuf) -> anyhow::Result<ProgressDb> {
+    Ok(ProgressDb(Mutex::new(open_conn(&db_path)?)))
+}
+
+impl ProgressDb {
+    /// Re-point this managed connection at a different profile's
+    /// `progress.sqlite`. Called by `profiles::switch_profile` so a
+    /// profile switch doesn't require a process restart — the
+    /// `app.manage`d `ProgressDb` is process-wide, so we swap the
+    /// `Connection` inside its `Mutex` in place. The old connection
+    /// is dropped (closed, WAL checkpointed by SQLite) when the
+    /// `std::mem::replace`d value goes out of scope.
+    pub fn reopen(&self, db_path: PathBuf) -> anyhow::Result<()> {
+        let fresh = open_conn(&db_path)?;
+        let mut guard = self
+            .0
+            .lock()
+            .map_err(|_| anyhow::anyhow!("progress db mutex poisoned"))?;
+        *guard = fresh;
+        Ok(())
+    }
 }
 
 /// Build the path where the SQLite file lives. Uses Tauri's resolved app-data
 /// dir so it ends up in the platform-appropriate location (~/Library/Application
 /// Support/com.mattssoftware.libre on macOS, %APPDATA% on Windows).
 pub fn resolve_path(app: &tauri::AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("app_data_dir: {e}"))?;
-    std::fs::create_dir_all(&dir)?;
+    // Profile-scoped: <app_data>/profiles/<active>/progress.sqlite.
+    // `profile_app_root` create_dir_all's the profile dir.
+    let dir = crate::profiles::profile_app_root(app)?;
     Ok(dir.join("progress.sqlite"))
 }
 

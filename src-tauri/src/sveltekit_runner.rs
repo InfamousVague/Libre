@@ -274,10 +274,9 @@ pub fn current_sveltekit_url(
 // ---- Internals ----------------------------------------------------------
 
 fn lesson_dir(app: &AppHandle, lesson_id: &str) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("resolve app data dir: {e}"))?;
+    // Profile-scoped scratch dir for SvelteKit lesson runs.
+    let base = crate::profiles::profile_app_root(app)
+        .map_err(|e| format!("resolve profile data dir: {e}"))?;
     // Lesson IDs are caller-controlled and shaped like
     // `basic-sveltekit--02-routing--01-pages`. They're already
     // path-safe by ingest convention but we re-sanitise as a
@@ -290,10 +289,10 @@ fn lesson_dir(app: &AppHandle, lesson_id: &str) -> Result<PathBuf, String> {
 }
 
 fn shared_npm_cache(app: &AppHandle) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("resolve app data dir: {e}"))?;
+    // Profile-scoped — keeps one profile's node_modules cache from
+    // bleeding into another (different installed deps per library).
+    let base = crate::profiles::profile_app_root(app)
+        .map_err(|e| format!("resolve profile data dir: {e}"))?;
     let dir = base.join("sveltekit-npm-cache");
     fs::create_dir_all(&dir).map_err(|e| format!("create npm cache: {e}"))?;
     Ok(dir)

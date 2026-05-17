@@ -763,3 +763,70 @@ pub async fn run_zig(code: String, mode: Option<String>) -> SubprocessResult {
     )
 }
 
+// ---- Rust -----------------------------------------------------------
+
+/// Compile + run the learner's Rust locally via `rustc`. This is the
+/// OPTIONAL fast path: `runtimes/rust.ts` prefers it when a local
+/// toolchain is present and silently falls back to the public Rust
+/// Playground (`play.rust-lang.org/execute`) otherwise — so a missing
+/// rustc is never a hard failure, just a slower run.
+///
+/// `test` mirrors `run_zig`'s `mode`: the JS side passes it as a
+/// single boolean (`testCode != null`). When true we compile with
+/// `--test`, which links libtest and produces a harness binary whose
+/// stdout is EXACTLY the `test kata_tests::foo ... ok` format the
+/// Playground path already emits — so `rust.ts::parseTestResults`
+/// consumes local + remote output through one identical code path
+/// with zero divergence. When false we build an ordinary binary and
+/// run it (Playground "run" equivalent).
+///
+/// Edition 2021 + `-O0` mirror the Playground request body in
+/// `rust.ts` (`{ edition: "2021", mode: "debug" }`) so behaviour is
+/// consistent whichever path actually executes — a lesson that
+/// compiles remotely must compile locally too.
+///
+/// PATH is broadened on BOTH the compile and the run command:
+/// rustup installs `rustc` to `~/.cargo/bin`, which a Finder-launched
+/// GUI app's minimal PATH doesn't include (`broadened_path()` adds
+/// it). The run command inherits it too because some rustup setups
+/// resolve the dynamic std/sysroot relative to the toolchain dir.
+#[tauri::command]
+pub async fn run_rust(code: String, test: Option<bool>) -> SubprocessResult {
+    let start = Instant::now();
+    let source = match write_temp("rust", "rs", &code) {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    let binary = source.with_extension("out");
+    let broadened = crate::toolchain::broadened_path();
+
+    let mut compile = Command::new("rustc");
+    compile
+        .env("PATH", &broadened)
+        .arg("--edition")
+        .arg("2021")
+        .arg("-O0")
+        .arg("-o")
+        .arg(&binary)
+        .arg(&source);
+    // `--test` builds the libtest harness binary (the
+    // `#[cfg(test)] mod kata_tests` block joinCodeAndTests wraps the
+    // user's tests in). Without it those test fns are dead code and
+    // the binary just runs `main`, so a lesson would always report
+    // "0 tests".
+    if test.unwrap_or(false) {
+        compile.arg("--test");
+    }
+
+    let mut run_cmd = Command::new(&binary);
+    run_cmd.env("PATH", &broadened);
+
+    compile_then_run(
+        compile,
+        run_cmd,
+        "rustc",
+        "install Rust via rustup (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`) or use the in-app prompt.",
+        start,
+    )
+}
+

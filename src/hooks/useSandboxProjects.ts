@@ -34,10 +34,16 @@ import {
   loadProject as fsLoadProject,
   saveProject as fsSaveProject,
 } from "../lib/sandboxFs";
+import { profileKey } from "../lib/profileStore";
 
-const STORAGE_PROJECTS = "libre:sandbox:v1:projects";
-const STORAGE_ACTIVE = "libre:sandbox:v1:active";
-const LEGACY_PLAYGROUND_PREFIX = "libre:playground:v1:";
+// Profile-scoped localStorage mirror of the sandbox project list.
+// The on-disk projects dir is already profile-rooted in the Rust
+// backend (profiles::sandbox_profile_root); namespacing the mirror
+// too keeps a stale cross-profile list from flashing before the
+// disk reconcile runs.
+const STORAGE_PROJECTS = profileKey("libre:sandbox:v1:projects");
+const STORAGE_ACTIVE = profileKey("libre:sandbox:v1:active");
+const LEGACY_PLAYGROUND_PREFIX = profileKey("libre:playground:v1:");
 
 export interface SandboxProject {
   /// Stable random id — never shown to the user; React key + the

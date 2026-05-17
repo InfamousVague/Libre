@@ -1,6 +1,8 @@
 import type { RunResult, LogLine, TestResult } from "./types";
+import { isDesktop } from "../lib/platform";
 
-/// Rust via play.rust-lang.org/execute.
+/// Rust via local `rustc` (fast path) with a play.rust-lang.org
+/// fallback.
 ///
 /// Rust can't be cleanly compiled in-browser for V1 (rustc-as-WASM is huge and
 /// slow), so we lean on the public Rust Playground execute endpoint. The
@@ -44,6 +46,111 @@ interface PlaygroundResponse {
   error?: string;
 }
 
+/// Shape of the Rust backend's `SubprocessResult` (see
+/// `src-tauri/src/lib.rs`). `launch_error` is set ONLY when the
+/// process couldn't start (rustc missing / not on PATH) — that's
+/// our signal to silently fall back to the Playground.
+interface SubprocessResult {
+  stdout: string;
+  stderr: string;
+  success: boolean;
+  duration_ms: number;
+  launch_error: string | null;
+}
+
+/// Session cache for "is `rustc` available locally?". `undefined`
+/// = not probed yet, `true`/`false` = probed. Memoised so we don't
+/// IPC a toolchain probe on every single run; `resetRustcProbe()`
+/// clears it after the in-app installer finishes so the very next
+/// run picks up the freshly-installed toolchain without a reload.
+let rustcAvailable: boolean | undefined;
+let rustcProbeInFlight: Promise<boolean> | null = null;
+
+/// Clear the memoised probe — call after `install_language_toolchain`
+/// succeeds so `runRust` re-probes and starts using the local fast
+/// path immediately. Exported for the RustLocalPrompt to invoke.
+export function resetRustcProbe(): void {
+  rustcAvailable = undefined;
+  rustcProbeInFlight = null;
+}
+
+/// Probe once per session whether a local `rustc` exists. Web build
+/// always returns false (no Tauri); any probe failure is treated as
+/// "not available" so we degrade to the Playground rather than hang.
+async function probeRustc(): Promise<boolean> {
+  if (!isDesktop) return false;
+  if (rustcAvailable !== undefined) return rustcAvailable;
+  if (rustcProbeInFlight) return rustcProbeInFlight;
+  rustcProbeInFlight = (async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const status = await invoke<{ installed?: boolean }>(
+        "probe_language_toolchain",
+        { language: "rust" },
+      );
+      rustcAvailable = !!status?.installed;
+    } catch {
+      // Older binary without the probe command, or IPC failure —
+      // assume no local toolchain and use the Playground.
+      rustcAvailable = false;
+    }
+    rustcProbeInFlight = null;
+    return rustcAvailable;
+  })();
+  return rustcProbeInFlight;
+}
+
+/// Run the merged source through the local `rustc` backend command.
+/// Returns a `PlaygroundResponse`-shaped object so the EXISTING
+/// `buildResult()` / `parseTestResults()` pipeline consumes local
+/// and remote output through one identical path — zero divergence.
+///
+/// Returns `null` to signal "fall back to the Playground": either
+/// the toolchain vanished mid-session (`launch_error`) or the IPC
+/// itself failed. A compile error or failing test is NOT a fallback
+/// — that's a real result the learner needs to see, so it's mapped
+/// through faithfully.
+///
+/// Mapping rationale:
+///   - success → drop stderr. A clean `rustc` compile prints only
+///     progress/warnings to stderr; the Playground (cargo) path
+///     already hides exactly that on success via the `Finished`
+///     check in `buildResult`. Dropping it keeps the two paths
+///     visually identical instead of local suddenly surfacing
+///     warning noise remote hides.
+///   - failure → pass stderr verbatim. `buildResult` uses
+///     `tests.length` to tell a compile error (parsed from the
+///     rustc `error[EXXXX]` block by `extractCompileError`) apart
+///     from a failing-test run (parsed from stdout), so faithful
+///     stderr is required for the compile-error branch.
+async function runRustLocal(
+  merged: string,
+  isTest: boolean,
+): Promise<PlaygroundResponse | null> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const raw = await invoke<SubprocessResult>("run_rust", {
+      code: merged,
+      test: isTest,
+    });
+    if (raw.launch_error) {
+      // rustc not startable (uninstalled / removed since probe) —
+      // refresh the cache so we don't keep trying, then fall back.
+      rustcAvailable = false;
+      return null;
+    }
+    return {
+      success: raw.success,
+      stdout: raw.stdout,
+      stderr: raw.success ? "" : raw.stderr,
+    };
+  } catch {
+    // IPC failure (command not registered on an older binary,
+    // serialization issue, …). Don't surface it — fall back.
+    return null;
+  }
+}
+
 export async function runRust(code: string, testCode?: string): Promise<RunResult> {
   const start = performance.now();
   const isTest = !!testCode;
@@ -57,6 +164,18 @@ export async function runRust(code: string, testCode?: string): Promise<RunResul
   // stack into the workbench error pane.
   try {
     const merged = testCode ? joinCodeAndTests(code, testCode) : code;
+
+    // Local fast path. When a desktop user has `rustc` installed,
+    // compile + run on their machine — instant, offline, no shared
+    // sandbox queue. `runRustLocal` returns null to mean "couldn't
+    // run locally, use the Playground" (toolchain vanished / IPC
+    // failure); a compile error or failing test comes back as a
+    // real `PlaygroundResponse` and skips the network entirely.
+    if (await probeRustc()) {
+      const local = await runRustLocal(merged, isTest);
+      if (local) return buildResult(local, isTest, start);
+    }
+
     const body = await fetchPlaygroundWithRetry(merged, isTest);
     return buildResult(body, isTest, start);
   } catch (err) {

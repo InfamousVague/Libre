@@ -96,16 +96,24 @@ export function resolveEffortParams(
 }
 
 export const DEFAULT_SETTINGS: AiAgentSettings = {
-  // Auto-approve is now ON by default. The user's bug report
-  // captured the cost of the prior default: clicking through six
-  // separate Allow chips for a single "build me a blackjack game"
-  // run made the agent feel adversarial. The low-confidence gate
-  // (`pauseOnLowConfidence`) is still on by default so destructive
-  // calls the model itself flagged as uncertain still surface a
-  // chip — that's the safety net for "the agent is auto-approving
-  // a guess." Power users who don't trust the agent yet can flip
-  // it off in the settings sheet.
-  autoApprove: true,
+  // Auto-approve ships OFF by default (security review, May 2026).
+  //
+  // The agent can write sandbox files and invoke a native
+  // compile-and-run tool. Untrusted course/lesson text is fed into
+  // the model's context, so a prompt-injection-via-content chain
+  // could otherwise drive file writes + code execution with the
+  // user's privileges WITHOUT the user ever approving an action.
+  // Path traversal out of the sandbox dir is already blocked in the
+  // Rust backend, but unattended *execution* of model-authored code
+  // is too sharp an edge to default-on for a learn-to-code app.
+  //
+  // The safe default is a per-action Allow prompt for the gated
+  // tools (write / patch / run). The earlier "clicking six chips
+  // feels adversarial" UX note is real but is the correct trade for
+  // not auto-running generated code by default — users who trust
+  // the agent can still flip auto-approve on in the settings sheet,
+  // and `pauseOnLowConfidence` stays on regardless.
+  autoApprove: false,
   pauseOnLowConfidence: true,
   showTokens: true,
   showConfidence: true,

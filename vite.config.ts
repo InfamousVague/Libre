@@ -173,5 +173,12 @@ export default defineConfig(async () => ({
     setupFiles: "./src/test/setup.ts",
     css: true,
     mockReset: true,
+    // vitest/vite can't resolve the `monaco-editor` package entry
+    // (it ships ESM with an exports map node's resolver trips on).
+    // Stub it for tests — no test renders a live editor; the
+    // `@monaco-editor/react` <Editor> is mocked per-suite anyway.
+    alias: {
+      "monaco-editor": resolve(__dirname, "src/test/monacoStub.ts"),
+    },
   },
 }));

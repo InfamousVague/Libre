@@ -17,8 +17,9 @@
 /// hook's surface — the schema is already stable.
 
 import { useCallback, useEffect, useState } from "react";
+import { profileKey } from "../lib/profileStore";
 
-const STORAGE_KEY = "libre-practice-history-v1";
+const STORAGE_KEY = profileKey("libre-practice-history-v1");
 
 /// Tracks per-card attempt history + computes the next-due date
 /// using a tiny Anki-flavoured schedule.

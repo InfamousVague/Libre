@@ -30,6 +30,7 @@ import {
 } from "../../lib/phonePopout";
 import Workbench from "../Workbench/Workbench";
 import MissingToolchainBanner from "../banners/MissingToolchain/MissingToolchainBanner";
+import RustLocalPrompt from "../dialogs/RustLocalPrompt/RustLocalPrompt";
 import { useToolchainStatus } from "../../hooks/useToolchainStatus";
 import { useLocalStorageState } from "../../hooks/useLocalStorageState";
 import QuizView from "../Quiz/QuizView";
@@ -757,6 +758,14 @@ export default function LessonView({
         onRetryLesson={onRetryLesson}
         requiresDevice={courseRequiresDevice}
       />
+      {/* First-time "compile Rust locally for instant runs" nudge.
+          Self-gating: no-ops unless this is a Rust exercise on
+          desktop with rustc NOT already installed and the learner
+          hasn't permanently dismissed. Rust still works without it
+          (Playground fallback) — this just offers the fast path.
+          `lessonLanguage` is `undefined` for reading lessons, so
+          the component arms only on actual Rust exercises. */}
+      <RustLocalPrompt language={lessonLanguage} />
       {hasExercise && !popped && !hasTradeHarness && (
         <div className="libre__lesson-workbench-wrap">
           {showLessonToolchainBanner && lessonToolchainStatus && (

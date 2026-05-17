@@ -16,7 +16,10 @@
 /// certificates — the printed PNG always reflects who the learner
 /// was at the time they crossed the finish line.
 
-const STORAGE_KEY = "libre:certificates:v1";
+import { profileKey } from "../lib/profileStore";
+
+// Profile-scoped: certificates are earned per profile/account.
+const STORAGE_KEY = profileKey("libre:certificates:v1");
 
 export interface Certificate {
   /// Stable random id for this certificate. Used in the verify URL

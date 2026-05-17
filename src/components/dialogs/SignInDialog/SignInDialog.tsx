@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { UseLibreCloud } from "../../../hooks/useLibreCloud";
 import { isWeb } from "../../../lib/platform";
+import { setPendingOAuthSession } from "../../../lib/oauthSession";
 import { track } from "../../../lib/track";
 import PasswordField, { PASSWORD_MIN_LENGTH, scorePassword } from "./PasswordField";
 import ModalBackdrop from "../../Shared/ModalBackdrop";
@@ -305,6 +306,14 @@ export default function SignInDialog({
       if (isWeb) {
         if (!startWebOAuth(provider, sessionId)) return;
       } else {
+        // Stash the nonce so App.tsx's `libre://oauth/done` deep-link
+        // handler can verify the callback actually corresponds to
+        // THIS sign-in attempt before applying the returned token —
+        // without this the desktop path would accept any token a
+        // crafted deep link delivered (login-CSRF). The web path
+        // doesn't need this; it validates `oauthSessionRef` against
+        // the origin-pinned postMessage in-component.
+        setPendingOAuthSession(sessionId);
         await invoke("start_oauth", { provider, sessionId });
       }
       setAwaitingOAuth(true);

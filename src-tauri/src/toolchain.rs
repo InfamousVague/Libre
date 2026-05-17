@@ -484,10 +484,35 @@ pub async fn install_language_toolchain(
     // Caller-supplied command overrides the recipe's default — this is
     // how the Kotlin partial-install case gets `brew install openjdk`
     // instead of `brew install kotlin` when kotlinc is present but the
-    // JDK is missing. We trust the banner's shown command because the
-    // only path that sets it is our own probe (see the `language ==
-    // "kotlin" && installed` block above).
+    // JDK is missing.
+    //
+    // SECURITY: this string is fed to `sh -c`, and any code that reaches
+    // the webview can call this command via `invoke`. We must NOT trust
+    // the caller — a crafted `command` would otherwise be arbitrary
+    // local code execution. So we ignore the override unless it EXACTLY
+    // matches one of the small set of commands the recipe system can
+    // legitimately produce for this language (the recipe's own canonical
+    // command, plus the probe-derived `brew install openjdk` variant
+    // that the Kotlin partial-install path emits). Anything else is
+    // rejected outright rather than silently falling back, so a
+    // tampering attempt surfaces instead of running the wrong installer.
     if let Some(cmd) = command {
+        let mut allowed: Vec<&str> = vec![hint.command.as_str()];
+        // The single legitimate probe-derived override: Kotlin present
+        // but no JDK → install OpenJDK (mirrors the
+        // `language == "kotlin" && installed` branch in
+        // `probe_language_toolchain`).
+        if language == "kotlin" {
+            allowed.push("brew install openjdk");
+        }
+        if !allowed.iter().any(|a| *a == cmd) {
+            return Err(format!(
+                "refusing to run an install command that is not in the \
+                 allowlist for {language}. This is a safety check — the \
+                 installer only runs the exact command the toolchain \
+                 recipe defines."
+            ));
+        }
         hint.command = cmd;
     }
 

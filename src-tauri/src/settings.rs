@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -37,15 +37,15 @@ impl Default for Settings {
 pub struct SettingsState(pub Mutex<Settings>);
 
 fn settings_path(app: &tauri::AppHandle) -> anyhow::Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("app_data_dir: {e}"))?;
-    fs::create_dir_all(&dir)?;
+    // Profile-scoped (per-profile AI keys / model): the active
+    // profile's settings.json. `profile_app_root` create_dir_all's
+    // the profile dir.
+    let dir = crate::profiles::profile_app_root(app)?;
     Ok(dir.join("settings.json"))
 }
 
-/// Read settings.json from disk. Used once at setup to hydrate SettingsState.
+/// Read settings.json from disk. Used at setup to hydrate
+/// SettingsState and again by `reload_into` on a profile switch.
 pub fn read_from_disk(app: &tauri::AppHandle) -> anyhow::Result<Settings> {
     let path = settings_path(app)?;
     if !path.exists() {
@@ -53,6 +53,20 @@ pub fn read_from_disk(app: &tauri::AppHandle) -> anyhow::Result<Settings> {
     }
     let raw = fs::read_to_string(&path)?;
     Ok(serde_json::from_str(&raw)?)
+}
+
+/// Replace the in-memory settings with the active profile's
+/// settings.json. Called by `profiles::switch_profile` so per-profile
+/// API keys / model take effect without a restart. A missing file
+/// (brand-new profile) resets to defaults rather than carrying the
+/// previous profile's keys over.
+pub fn reload_into(
+    state: &SettingsState,
+    app: &tauri::AppHandle,
+) -> anyhow::Result<()> {
+    let next = read_from_disk(app).unwrap_or_default();
+    *state.0.lock() = next;
+    Ok(())
 }
 
 #[tauri::command]

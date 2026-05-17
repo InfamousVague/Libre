@@ -1,0 +1,197 @@
+/* Settings → Profiles. Uses the shared settings/theme tokens so it
+   matches the rest of the dialog across all themes. */
+
+.libre-profiles__web-note,
+.libre-profiles__loading,
+.libre-profiles__hint {
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-secondary, rgba(245, 245, 247, 0.65));
+}
+
+.libre-profiles__error {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 111, 111, 0.1);
+  border: 1px solid rgba(239, 111, 111, 0.32);
+  color: #ffb4b4;
+  font-size: 12.5px;
+}
+
+.libre-profiles__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.libre-profiles__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.libre-profiles__row--active {
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary, #241b2f) 88%,
+    var(--color-accent, #d4c5a1) 12%
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--color-border-default, rgba(255, 255, 255, 0.08)) 50%,
+    var(--color-accent, #d4c5a1) 50%
+  );
+}
+
+.libre-profiles__avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.05));
+  color: var(--color-text-secondary, rgba(245, 245, 247, 0.7));
+}
+
+.libre-profiles__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary, #f5f5f7);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libre-profiles__cloud {
+  font-size: 11px;
+  color: var(--color-text-tertiary, rgba(245, 245, 247, 0.5));
+}
+
+.libre-profiles__rename-input,
+.libre-profiles__create-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--color-text-primary, #f5f5f7);
+  background: var(--color-bg-primary, #1a1427);
+  border: 1px solid var(--color-border-strong, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  outline: none;
+}
+
+.libre-profiles__rename-input:focus,
+.libre-profiles__create-input:focus {
+  border-color: var(--color-accent, #d4c5a1);
+}
+
+.libre-profiles__active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-accent, #d4c5a1);
+  color: var(--color-accent-fg, #111111);
+  flex-shrink: 0;
+}
+
+.libre-profiles__btn {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.08));
+  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.05));
+  color: var(--color-text-primary, #f5f5f7);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.libre-profiles__btn:hover:not(:disabled) {
+  border-color: var(--color-border-strong, rgba(255, 255, 255, 0.18));
+}
+
+.libre-profiles__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.libre-profiles__btn--switch:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--color-bg-tertiary, rgba(255, 255, 255, 0.05)) 70%,
+    var(--color-accent, #d4c5a1) 30%
+  );
+}
+
+.libre-profiles__btn--primary {
+  background: var(--color-accent, #d4c5a1);
+  color: var(--color-accent-fg, #111111);
+  border-color: var(--color-accent, #d4c5a1);
+}
+
+.libre-profiles__btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.libre-profiles__btn--danger {
+  background: rgba(239, 111, 111, 0.15);
+  border-color: rgba(239, 111, 111, 0.45);
+  color: #ff9a9a;
+}
+
+.libre-profiles__icon-btn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-tertiary, rgba(245, 245, 247, 0.5));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.libre-profiles__icon-btn:hover {
+  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.06));
+  color: var(--color-text-primary, #f5f5f7);
+}
+
+.libre-profiles__icon-btn--danger:hover {
+  color: #ff9a9a;
+}
+
+.libre-profiles__create {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+
+.libre-profiles__hint {
+  padding-top: 4px;
+}

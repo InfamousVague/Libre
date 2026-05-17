@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { profileKey } from "../lib/profileStore";
 
 /// localStorage key for the `{ [courseId]: unixSeconds }` map that tracks
 /// the last time each course was opened / focused. Bumped whenever the
 /// learner selects a lesson in that course; consumed by the sidebar
 /// carousel to sort "recent first".
-const STORAGE_KEY = "libre:recent-courses:v1";
+const STORAGE_KEY = profileKey("libre:recent-courses:v1");
 
 type RecentsMap = Record<string, number>;
 

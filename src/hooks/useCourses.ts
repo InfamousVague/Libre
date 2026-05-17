@@ -4,13 +4,16 @@ import { seedCourses } from "../data/seedCourses";
 import { seedWebStarterCourses } from "../data/webSeedCourses";
 import { isWeb } from "../lib/platform";
 import type { Course } from "../data/types";
+import { profileKey } from "../lib/profileStore";
 
 /// Last-fetched summary cache. Read synchronously on first render so
 /// the library has SOMETHING to paint while the IPC is in flight —
 /// SWR-style: render stale, revalidate, swap if changed. Bumping the
 /// `-vN` suffix invalidates every user's cache (use when the
 /// summary's stripped-body shape changes server-side).
-const SUMMARY_CACHE_KEY = "libre:courses-summary-cache-v1";
+// Profile-scoped: each profile's installed library differs, so the
+// SWR paint cache must not bleed one profile's books into another.
+const SUMMARY_CACHE_KEY = profileKey("libre:courses-summary-cache-v1");
 const SUMMARY_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 interface SummaryCache {
   ts: number;

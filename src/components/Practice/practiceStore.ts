@@ -29,13 +29,15 @@
 
 import type { PracticeItem, PracticeRecord, PracticeStats } from "./types";
 import { difficultyBoost, gradeAttempt as runScheduler } from "./practiceSchedule";
+import { profileKey } from "../../lib/profileStore";
 
-const STORAGE_KEY = "libre:practice:records:v1";
+// Profile-scoped: each profile has its own SRS schedule + records.
+const STORAGE_KEY = profileKey("libre:practice:records:v1");
 
 /// Today's attempts log. Stored separately from records so we
 /// don't have to walk every record to count today's attempts.
 /// Shape: { dayKey: "YYYY-MM-DD", attempts: n, correct: n }.
-const TODAY_KEY = "libre:practice:today:v1";
+const TODAY_KEY = profileKey("libre:practice:today:v1");
 
 interface TodayCounter {
   dayKey: string;
