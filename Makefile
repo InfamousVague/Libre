@@ -197,8 +197,22 @@ release:
 	NEW="$$MAJOR.$$MINOR.$$PATCH"; \
 	echo "=== Bumping $$CURRENT → $$NEW ==="; \
 	sed -i '' "s/\"version\": \"$$CURRENT\"/\"version\": \"$$NEW\"/" src-tauri/tauri.conf.json; \
-	sed -i '' "s/^version = \"$$CURRENT\"/version = \"$$NEW\"/" src-tauri/Cargo.toml; \
-	git add src-tauri/tauri.conf.json src-tauri/Cargo.toml; \
+	sed -i '' "/^\[package\]/,/^version = / s/^version = .*/version = \"$$NEW\"/" src-tauri/Cargo.toml; \
+	sed -i '' "/^name = \"libre\"/,/^version = / s/^version = .*/version = \"$$NEW\"/" src-tauri/Cargo.lock; \
+	TAURI_V=$$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/'); \
+	CARGO_V=$$(grep '^version = ' src-tauri/Cargo.toml | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/'); \
+	LOCK_V=$$(grep -A1 '^name = "libre"' src-tauri/Cargo.lock | grep '^version = ' | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/'); \
+	if [ "$$TAURI_V" != "$$NEW" ] || [ "$$CARGO_V" != "$$NEW" ] || [ "$$LOCK_V" != "$$NEW" ]; then \
+		echo "ERROR: version bump drift detected after sed — files disagree:"; \
+		echo "  expected (NEW):       $$NEW"; \
+		echo "  tauri.conf.json:      $$TAURI_V"; \
+		echo "  Cargo.toml [package]: $$CARGO_V"; \
+		echo "  Cargo.lock libre:     $$LOCK_V"; \
+		echo "Aborting before commit/tag/push. Fix the version lines by hand and re-run."; \
+		exit 1; \
+	fi; \
+	echo "  version files in sync at $$NEW (tauri.conf.json / Cargo.toml / Cargo.lock)"; \
+	git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock; \
 	git commit -m "Libre v$$NEW"; \
 	git tag -a "v$$NEW" -m "Libre v$$NEW"; \
 	git push origin HEAD; \
