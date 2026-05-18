@@ -11,16 +11,18 @@ name: Desktop Build
 #                              attached to the workflow run. Smoke
 #                              test that every change still produces
 #                              installable bundles.
-#   - tag push (v*)         → builds Linux + Windows (NOT macOS) and
-#                              uploads bundles to the published GitHub
-#                              release named after the tag. macOS is
-#                              skipped because the maintainer's signed
-#                              + notarized DMG comes from
-#                              `make local-release` running on their
-#                              local machine — the CI runner doesn't
-#                              have the Apple Developer ID cert. The
-#                              local upload runs first; CI appends
-#                              Linux/Windows to the same release.
+#   - tag push (v*)         → matrix builds Linux + Windows and
+#                              uploads them to the GitHub release
+#                              named after the tag. A dedicated
+#                              `macos-release` job then builds,
+#                              Developer-ID signs, Apple-notarizes,
+#                              staples, and uploads the macOS .dmg
+#                              (+ OTA artefacts) to the same release.
+#                              No more `make local-release` on the
+#                              maintainer's machine — CI is the one
+#                              source of the signed Mac build, so it
+#                              actually shows up for the launcher and
+#                              the marketing download every release.
 #   - workflow_dispatch     → ad-hoc build, artefacts only (all 3).
 #
 # COST WARNING: this fires on every push to main. macOS runners
@@ -37,10 +39,18 @@ name: Desktop Build
 #       - 'package*.json'
 # … so doc / CI-only changes don't burn macOS time.
 #
+# macOS code-signing + notarization now happens in CI (the
+# `macos-release` job) using these repo secrets — set once on this
+# repo (same values as the Blip repo):
+#   APPLE_CERTIFICATE              base64 of the Developer ID .p12
+#   APPLE_CERTIFICATE_PASSWORD     the .p12 export password
+#   APPLE_SIGNING_IDENTITY         "Developer ID Application: … (TEAMID)"
+#   APPLE_ID / APPLE_PASSWORD      Apple ID + app-specific password
+#   APPLE_TEAM_ID                  F6ZAL7ANAD
+#   TAURI_SIGNING_PRIVATE_KEY{,_PASSWORD}   OTA updater key (already set)
+#
 # Out of scope here:
-#   - Code-signing / notarization (Apple Developer ID, Windows
-#     Authenticode). When ready, add signing certs as secrets and
-#     pass them via `TAURI_SIGNING_*` env vars to tauri-action.
+#   - Windows Authenticode signing (unsigned .msi/.exe for now).
 #   - The Linux runner is pinned to ubuntu-22.04, not 24.04 — newer
 #     glibc breaks AppImage portability on older user distros.
 on:
@@ -305,6 +315,150 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  # Dedicated macOS release: build → Developer-ID sign → Apple
+  # notarize → staple → upload the .dmg (+ OTA tarball/sig) to the
+  # tag's release. This is what makes Libre actually installable on
+  # macOS via the MattsSoftware launcher and downloadable from the
+  # marketing site — previously it depended on the maintainer
+  # remembering to run `make local-release`, so releases shipped
+  # with no Mac build at all. Mirrors the proven Blip CI pattern
+  # and reuses Libre's own scripts/post-build.sh.
+  macos-release:
+    name: macOS (signed + notarized)
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 'Checkout @mattmattmattmatt/base (file: dep)'
+        uses: actions/checkout@v4
+        with:
+          repository: InfamousVague/base
+          path: _base
+          ref: main
+
+      - name: 'Wire _base/ into ../../Libs/base for the file: dep'
+        shell: bash
+        run: |
+          mkdir -p ../../Libs
+          cp -r _base ../../Libs/base
+          test -d ../../Libs/base/primitives \
+            || (echo "Libs/base/primitives missing — wiring is wrong"; exit 1)
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust target
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install ImageMagick (macOS)
+        run: brew install imagemagick
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Cache vendor assets
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/vendor
+          key: vendor-${{ hashFiles('package-lock.json', 'scripts/vendor-cdn-deps.mjs') }}
+          restore-keys: |
+            vendor-
+
+      # Proven Blip pattern: load the Developer ID cert from the
+      # base64 .p12 secret into a throwaway build keychain so
+      # codesign can find the identity tauri.conf.json references.
+      - name: Import Apple Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "::error::APPLE_CERTIFICATE secret missing on this repo."
+            echo "Set APPLE_CERTIFICATE/_PASSWORD/_SIGNING_IDENTITY +"
+            echo "APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID (mirror the Blip repo)."
+            exit 1
+          fi
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k actions build.keychain
+          rm certificate.p12
+
+      - name: Build (Tauri, signed)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --bundles app,dmg
+
+      # Libre's own post-build: hardened-runtime + secure-timestamp
+      # re-sign of everything, then rebuild the DMG. Same script
+      # `make sign` runs locally; it sources .env.apple for the
+      # identity.
+      - name: Post-build (hardened re-sign + rebuild DMG)
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          echo "APPLE_SIGNING_IDENTITY=\"$APPLE_SIGNING_IDENTITY\"" > .env.apple
+          cd src-tauri && bash scripts/post-build.sh
+
+      - name: Notarize + staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG=$(find src-tauri/target/release/bundle/dmg \
+            -name "Libre_*_aarch64.dmg" | head -1)
+          [ -n "$DMG" ] || { echo "::error::no Libre dmg produced"; exit 1; }
+          echo "Notarizing: $DMG"
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_PASSWORD" --wait
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+
+      - name: Upload macOS DMG + OTA artefacts to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          DMG=$(find src-tauri/target/release/bundle/dmg \
+            -name "Libre_*_aarch64.dmg" | head -1)
+          gh release upload "${{ github.ref_name }}" "$DMG" \
+            --clobber --repo "${{ github.repository }}"
+          TARBALL=$(find src-tauri/target/release/bundle/macos \
+            -name "*.app.tar.gz" | head -1)
+          SIG=$(find src-tauri/target/release/bundle/macos \
+            -name "*.app.tar.gz.sig" | head -1)
+          if [ -n "$TARBALL" ] && [ -n "$SIG" ]; then
+            cp "$TARBALL" "Libre_${VER}_aarch64.app.tar.gz"
+            cp "$SIG" "Libre_${VER}_aarch64.app.tar.gz.sig"
+            gh release upload "${{ github.ref_name }}" \
+              "Libre_${VER}_aarch64.app.tar.gz" \
+              "Libre_${VER}_aarch64.app.tar.gz.sig" \
+              --clobber --repo "${{ github.repository }}"
+          else
+            echo "::warning::OTA tarball/sig missing — TAURI_SIGNING_* unset?"
+          fi
+
   # Post-matrix step: assemble a unified latest.json that lists every
   # platform's updater bundle. tauri-action's per-job latest.json
   # output gets clobbered by whichever matrix entry uploads last —
@@ -314,7 +468,7 @@ jobs:
   # there's no release to attach a manifest to.
   build-update-manifest:
     name: Build OTA updater manifest
-    needs: build
+    needs: [build, macos-release]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-22.04
     permissions:
@@ -324,12 +478,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Best-effort: the script tolerates Mac assets not being there
-      # yet (local-release uploads them on its own cadence). On a fresh
-      # tag-push, we'd typically run after CI's Linux + Windows assets
-      # have landed and BEFORE local-release's Mac upload finishes —
-      # the local-release Makefile target re-runs `make update-manifest`
-      # at the end so the final manifest includes Mac too.
+      # Runs after build (Linux/Windows) AND macos-release (signed
+      # Mac dmg + OTA tarball) have uploaded their assets, so the
+      # rebuilt latest.json covers all three platforms.
       - name: Assemble latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
