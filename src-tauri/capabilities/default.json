@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/capability.json",
   "identifier": "default",
   "description": "Default permissions for the Libre app",
-  "windows": ["main", "workbench-*", "phone-*", "tray-panel"],
+  "windows": ["main", "workbench-*", "phone-*"],
   "permissions": [
     "core:default",
     "opener:default",

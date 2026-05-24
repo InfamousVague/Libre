@@ -1728,111 +1728,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coursesAll, openTabs]);
 
-  /// Bridge for the macOS menu-bar (tray) popover. The popover is
-  /// a separate WebviewWindow (`?tray=1`) — see `TrayPanel.tsx`
-  /// and `src-tauri/src/tray.rs`. It emits Tauri events that this
-  /// main App listens for and translates into the in-window
-  /// equivalents:
-  ///   - `libre:tray-ask` → dispatches the `libre:ask-ai` window
-  ///     CustomEvent the AiAssistant already subscribes to, with
-  ///     `kind: "ask"` + the prompt. Opens the AI panel + queues
-  ///     the question.
-  ///   - `libre:tray-open-course` → routes through the same
-  ///     `openCourseFromLibrary` path the Library card click uses.
-  /// Listener is set up once on mount; the cleanup unlisten
-  /// detaches the Tauri event subscription on unmount.
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { listen } = await import("@tauri-apps/api/event");
-        const offAsk = await listen<{ prompt: string }>(
-          "libre:tray-ask",
-          (event) => {
-            const prompt = event.payload?.prompt?.trim();
-            if (!prompt) return;
-            window.dispatchEvent(
-              new CustomEvent("libre:ask-ai", {
-                detail: { kind: "ask", prompt },
-              }),
-            );
-          },
-        );
-        const offOpen = await listen<{ courseId: string }>(
-          "libre:tray-open-course",
-          (event) => {
-            const courseId = event.payload?.courseId;
-            if (!courseId) return;
-            openCourseFromLibrary(courseId);
-          },
-        );
-        // `libre:tray-open-lesson` — the tray's AiChatPanel
-        // intercepts libre://lesson/<courseId>/<lessonId> links
-        // and forwards them as this Tauri event when running in
-        // the popover window. Routes through the same
-        // selectLesson path the in-window markdown click already
-        // uses (via the `libre:open-lesson` CustomEvent listener
-        // above) so the resume flow stays identical regardless
-        // of which window the AI link was clicked from.
-        const offOpenLesson = await listen<{
-          courseId: string;
-          lessonId: string;
-        }>("libre:tray-open-lesson", (event) => {
-          const { courseId, lessonId } = event.payload ?? {};
-          if (!courseId || !lessonId) return;
-          selectLesson(courseId, lessonId);
-        });
-        // Sandbox events forwarded from the tray window's agent.
-        // The tray fires `libre:sandbox-refresh` / `libre:sandbox-focus`
-        // in its own JS context; those don't reach us directly because
-        // separate WebviewWindows are separate runtimes. Re-dispatching
-        // them locally here lights up the same listeners
-        // (`useSandboxProjects`'s disk re-pull + `SandboxView`'s
-        // project/file switch + the view-mode flip below) as if the
-        // agent were running in this window.
-        const offSandboxRefresh = await listen("libre:tray-sandbox-refresh", () => {
-          window.dispatchEvent(new CustomEvent("libre:sandbox-refresh"));
-        });
-        const offSandboxFocus = await listen<{
-          projectId: string;
-          path: string | null;
-        }>("libre:tray-sandbox-focus", (event) => {
-          const { projectId, path } = event.payload ?? {};
-          if (!projectId) return;
-          window.dispatchEvent(
-            new CustomEvent("libre:sandbox-focus", {
-              detail: { projectId, path: path ?? undefined },
-            }),
-          );
-        });
-        if (cancelled) {
-          offAsk();
-          offOpen();
-          offOpenLesson();
-          offSandboxRefresh();
-          offSandboxFocus();
-        } else {
-          cleanup = () => {
-            offAsk();
-            offOpen();
-            offOpenLesson();
-            offSandboxRefresh();
-            offSandboxFocus();
-          };
-        }
-      } catch {
-        // Tauri event plugin unavailable (web build / test runner).
-        // The tray surface only exists on desktop anyway — this
-        // path is intentionally a no-op everywhere else.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // (The macOS menu-bar tray bridge that lived here was removed
+  // when the tray surface itself was deleted — see the (removed)
+  // `mod tray` in src-tauri/src/lib.rs. The in-app floating AI
+  // panel + the existing `libre:ask-ai` / `libre:open-course` /
+  // `libre:open-lesson` CustomEvent listeners above cover every
+  // entry point the tray used to forward into the main window.)
 
   /// Actually wipe the course: remove the course dir, drop open tabs, clear
   /// the book's ingest cache so a re-import starts fresh. Errors on cache
@@ -2241,9 +2142,7 @@ export default function App() {
             activeCourseId={view === "courses" ? activeCourse?.id : undefined}
             activeLessonId={view === "courses" ? activeLesson?.id : undefined}
             completed={completed}
-            recents={recentCourses}
             onSelectLesson={selectLesson}
-            onSelectCourse={openCourseFromLibrary}
             onLibrary={() => setView("library")}
             onExportCourse={exportCourse}
             onDeleteCourse={deleteCourseFromLibrary}

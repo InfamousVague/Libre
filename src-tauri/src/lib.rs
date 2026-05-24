@@ -39,12 +39,15 @@ mod sandbox;
 mod settings;
 mod sveltekit_runner;
 mod toolchain;
-// Tray (menu-bar icon + popover window) is a desktop-only feature —
-// iOS / Android lack the system tray surface entirely. Gate the
-// module + its command registrations so mobile builds don't try to
-// link tray-icon symbols.
-#[cfg(not(any(target_os = "ios", target_os = "android")))]
-mod tray;
+// Menu-bar tray was removed: the user uses dedicated AI tools
+// (Claude Code, Cursor, etc.) for quick-access AI; Libre's
+// in-app floating panel covers the in-context case. Removing the
+// tray module also drops a chunk of cross-window event plumbing
+// (libre:tray-* event listeners in App.tsx, the ?tray=1 webview,
+// the TrayPanel React surface). The `tray-icon` Cargo feature
+// stays in tauri's defaults since pulling it would require a
+// `default-features = false` Cargo edit; it's a few KB of unused
+// code rather than a working dependency.
 mod widget_snapshot;
 
 use std::io::Write;
@@ -245,19 +248,8 @@ pub fn run() {
                 chains::bitcoin::BitcoinState::new(),
             )) as chains::bitcoin::SharedBtc);
 
-            // Menu-bar (tray) icon — desktop only. Wraps the
-            // `TrayIconBuilder` setup + click→popover logic. macOS
-            // is the primary target (the user asked for "menu bar
-            // icon on mac"); Linux + Windows will also light up
-            // because the Tauri API is cross-platform, though the
-            // window-positioning math is calibrated for macOS's
-            // top-of-screen menu bar.
-            #[cfg(not(any(target_os = "ios", target_os = "android")))]
-            {
-                if let Err(e) = tray::setup_tray(app.handle()) {
-                    eprintln!("[libre] tray setup failed: {e}");
-                }
-            }
+            // Menu-bar tray removed — see the comment on the
+            // (deleted) `mod tray` at the top of this file.
 
             Ok(())
         })
@@ -442,12 +434,6 @@ pub fn run() {
             chains::bitcoin::btc_get_tx,
             chains::bitcoin::btc_get_height,
             chains::bitcoin::btc_mempool,
-            // Menu-bar (tray) popover plumbing — see `tray.rs`.
-            // Same desktop-only gating as the module declaration.
-            #[cfg(not(any(target_os = "ios", target_os = "android")))]
-            tray::tray_hide,
-            #[cfg(not(any(target_os = "ios", target_os = "android")))]
-            tray::tray_focus_main,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

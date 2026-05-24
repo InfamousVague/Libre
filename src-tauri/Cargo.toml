@@ -1,6 +1,6 @@
 [package]
 name = "libre"
-version = "1.2.0"
+version = "1.2.2"
 description = "Learn to code through books and guided exercises"
 edition = "2021"
 default-run = "libre"

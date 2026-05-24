@@ -57,8 +57,8 @@ bootLog("link interceptor installed");
 // Analytics — web-only, no-op everywhere else. Imported lazily so
 // the desktop / mobile bundles don't even include the module (Vite
 // + the `isWeb` guard inside the module elide the script-injection
-// path at build time). Auto-skips popout / tray / dock surfaces so
-// they don't double-count as independent pageviews.
+// path at build time). Auto-skips popout / dock surfaces so they
+// don't double-count as independent pageviews.
 void import("./lib/analytics").then((m) => m.init());
 
 const params = new URLSearchParams(window.location.search);
@@ -71,14 +71,7 @@ const isPhone = params.get("phone") === "1";
 const isEvmDock = params.get("evmDock") === "1";
 const isBtcDock = params.get("btcDock") === "1";
 const isSvmDock = params.get("svmDock") === "1";
-// Menu-bar (macOS tray) popover. Tauri's tray.rs spawns a frameless
-// WebviewWindow loaded at `?tray=1`; we route that to a slim panel
-// with Ask Libre + a scrollable in-progress list instead of mounting
-// the entire `App` (which would blow ~50MB through the menu-bar
-// surface).
-const isTray = params.get("tray") === "1";
-const popoutMode =
-  isPopped || isPhone || isEvmDock || isBtcDock || isSvmDock || isTray;
+const popoutMode = isPopped || isPhone || isEvmDock || isBtcDock || isSvmDock;
 
 // Kick off the courses-summary IPC BEFORE React mounts. Skip on the
 // popout / dock variants — they don't render the library so warming
@@ -130,7 +123,6 @@ const Page = (() => {
     );
   }
   if (isPhone) return lazy(() => import("./components/PhonePopout/PhonePopoutView"));
-  if (isTray) return lazy(() => import("./components/TrayPanel/TrayPanel"));
   if (isPopped) return lazy(() => import("./components/Workbench/PoppedWorkbench"));
   return isMobile
     ? lazy(() => import("./mobile/MobileApp"))

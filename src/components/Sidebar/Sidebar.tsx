@@ -12,7 +12,6 @@ import type { Course } from "../../data/types";
 import { isChallengePack } from "../../data/types";
 import { languageLabel } from "./labels";
 import CourseGroup from "./CourseGroup";
-import CourseCarousel from "./CourseCarousel";
 import { useT } from "../../i18n/i18n";
 import "./Sidebar.css";
 
@@ -21,17 +20,7 @@ interface Props {
   activeCourseId?: string;
   activeLessonId?: string;
   completed: Set<string>;
-  /// Per-course "last opened" timestamps keyed by course id. Used ONLY
-  /// by the sidebar-header carousel to sort recent-first — the course
-  /// tree itself doesn't care about timestamps. Empty map is fine
-  /// (carousel falls back to course array order).
-  recents?: Record<string, number>;
   onSelectLesson: (courseId: string, lessonId: string) => void;
-  /// Jump to a course via the header carousel — parent resolves the
-  /// "resume at" lesson (last-open tab or first lesson) and hands that
-  /// through. Separate from onSelectLesson so the carousel's click
-  /// behavior is explicit rather than guessing a lesson id here.
-  onSelectCourse?: (courseId: string) => void;
   /// Opens the course library modal. Used by the empty-state CTA
   /// inside the course tree ("Open Library" button shown when the
   /// user has zero courses installed). Primary nav routes
@@ -67,9 +56,7 @@ export default function Sidebar({
   activeCourseId,
   activeLessonId,
   completed,
-  recents = {},
   onSelectLesson,
-  onSelectCourse,
   onLibrary,
   onExportCourse,
   onDeleteCourse,
@@ -150,53 +137,17 @@ export default function Sidebar({
           Playground route, and Settings. Profile lives on the top-bar
           streak pill alongside level/XP so it's adjacent to the data
           it belongs with, not hiding in the left rail. */}
-      {/* "Viewing a lesson" mode collapses everything except the
-          brand + active course card. When `activeLessonId` is set
-          the learner has drilled all the way down into a specific
-          lesson; surrounding course-list / challenge-pack /
-          carousel chrome turns into visual noise competing with
-          the chapter tree they're working in. Outside that mode
-          (library, discover, the course landing before a lesson
-          is picked) the full layout is the right call — that's
-          when the carousel + sibling sections actually earn their
-          space. */}
-      {(() => {
-        const viewingLesson = !!activeLessonId && !!activeCourseId;
-
-        // Recent-courses carousel lives at the very top of the
-        // sidebar in non-lesson contexts. Horizontally scrollable
-        // row of cover thumbnails, newest-activity first; hidden
-        // when there's 0 or 1 course (nothing to switch between).
-        // Clicking a thumbnail jumps to the course — the parent
-        // resolves which lesson to resume.
-        if (viewingLesson || !onSelectCourse) return null;
-        return (
-          <CourseCarousel
-            courses={courses}
-            recents={recents}
-            completed={completed}
-            onSelectCourse={onSelectCourse}
-            onContextMenu={
-              onExportCourse || onDeleteCourse || onCourseSettings
-                ? (course, e) => {
-                    e.preventDefault();
-                    setMenu({
-                      courseId: course.id,
-                      courseTitle: course.title,
-                      x: e.clientX,
-                      y: e.clientY,
-                    });
-                  }
-                : undefined
-            }
-          />
-        );
-      })()}
+      {/* The horizontally-scrollable cover-thumbnail carousel that
+          used to live at the very top of the sidebar was retired
+          here — switching between recent courses is now the job of
+          the open lesson tabs above the workbench. Removing it
+          reclaims the sidebar's top edge for the chapter tree, the
+          surface that does the most work. */}
 
       {/* Library / Discover / Trees / Playground / Settings live in
           the navigation rail to the LEFT of this sidebar — see
           components/NavigationRail/NavigationRail.tsx. The sidebar's
-          job here is the course tree + carousel only. */}
+          job here is the course tree. */}
 
       <nav className="libre__nav">
         {(() => {

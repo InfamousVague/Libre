@@ -805,7 +805,17 @@ pub async fn run_rust(code: String, test: Option<bool>) -> SubprocessResult {
         .env("PATH", &broadened)
         .arg("--edition")
         .arg("2021")
-        .arg("-O0")
+        // No-optimization, fast compile. `-O0` is gcc/clang syntax —
+        // rustc parses `-O` as a value-less optimize flag, then sees
+        // `0` as a stray positional and bails with
+        //   `error: Unrecognized option: '0'`
+        // which surfaced in the user's output pane as a compile
+        // error on otherwise-valid Rust code. The correct rustc
+        // syntax is `-C opt-level=0` (also the implicit default for
+        // a non-`-O` build, but stating it explicitly preserves the
+        // original intent + makes a future `--release` toggle easy).
+        .arg("-C")
+        .arg("opt-level=0")
         .arg("-o")
         .arg(&binary)
         .arg(&source);
