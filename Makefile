@@ -250,11 +250,11 @@ local-release: build sign notarize
 		git tag -a "v$(VERSION)" -m "Libre v$(VERSION)"; \
 		git push origin "v$(VERSION)"; \
 	fi; \
-	gh release view "v$(VERSION)" >/dev/null 2>&1 && { \
+	gh release view "v$(VERSION)" --repo InfamousVague/Libre.academy >/dev/null 2>&1 && { \
 		echo "Release v$(VERSION) exists — uploading DMG as asset"; \
-		gh release upload "v$(VERSION)" "$$DMG_CURRENT" --clobber; \
+		gh release upload "v$(VERSION)" "$$DMG_CURRENT" --repo InfamousVague/Libre.academy --clobber; \
 	} || { \
-		gh release create "v$(VERSION)" \
+		gh release create "v$(VERSION)" --repo InfamousVague/Libre.academy \
 			"$$DMG_CURRENT" \
 			--title "Libre v$(VERSION)" \
 			--notes "Signed and notarized macOS release." \
@@ -267,6 +267,7 @@ local-release: build sign notarize
 		gh release upload "v$(VERSION)" \
 			"/tmp/Libre_$(VERSION)_aarch64.app.tar.gz" \
 			"/tmp/Libre_$(VERSION)_aarch64.app.tar.gz.sig" \
+			--repo InfamousVague/Libre.academy \
 			--clobber; \
 		rm -f "/tmp/Libre_$(VERSION)_aarch64.app.tar.gz" "/tmp/Libre_$(VERSION)_aarch64.app.tar.gz.sig"; \
 	else \

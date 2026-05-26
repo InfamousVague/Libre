@@ -48,7 +48,13 @@ if (!tag) {
   process.exit(1);
 }
 
-const REPO = "InfamousVague/Libre";
+// Canonical repo name post-rename. The old `InfamousVague/Libre`
+// GitHub-side-redirects to `Libre.academy` for git pushes, but
+// `gh release view/upload/create` calls quirk through the redirect
+// (silent 404s / wrong-repo uploads) — caused v1.3.5's mac assets
+// to never land on the release. Hardcoding the current name avoids
+// the redirect entirely.
+const REPO = "InfamousVague/Libre.academy";
 
 /// Map a Tauri updater asset filename → (platform key, raw url) pair.
 /// Platform keys follow the conventions Tauri's updater expects, see
