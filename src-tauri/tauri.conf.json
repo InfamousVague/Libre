@@ -59,7 +59,8 @@
     "resources": [
       "resources/vendor/*",
       "resources/node/**/*",
-      "resources/solana/**/*"
+      "resources/solana/**/*",
+      "resources/bundled-packs/**/*"
     ],
     "macOS": {
       "frameworks": [],
