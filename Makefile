@@ -134,13 +134,21 @@ build: pre-build
 		TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(TAURI_SIGNING_KEY_PASSWORD)" \
 		npm run tauri build -- --bundles app,dmg
 
-## Tauri OTA-update signing key. Generated once via
-## `npx @tauri-apps/cli signer generate -w ~/.tauri/libre-updater.key`;
-## the public half of this same keypair is committed to
-## `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). Losing the
-## private key requires shipping a manual-install version with a
-## NEW pubkey to rotate the trust root — keep it backed up.
-TAURI_SIGNING_KEY_PATH      ?= $(HOME)/.tauri/libre-updater.key
+## Tauri OTA-update signing key. The public half of this keypair is
+## committed to `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`,
+## key id `88A1D2B304B1B299`). Installed clients verify update
+## signatures against that pubkey; signing with any other key will
+## produce .sig files that are rejected at runtime as untrusted, so
+## the key path here MUST resolve to the matching private half
+## (`~/.tauri/fishbones-updater.key`). Losing the private key requires
+## shipping a manual-install version with a NEW pubkey to rotate the
+## trust root — keep it backed up.
+##
+## NB: don't reach for `TAURI_SIGNING_PRIVATE_KEY_PATH` from .env.apple
+## as a fallback — that variable historically pointed at `stash.key`
+## (a different keypair, id `7B01269A269320C5`) and using it would
+## sign updates with the wrong key and brick OTA upgrades silently.
+TAURI_SIGNING_KEY_PATH      ?= $(HOME)/.tauri/fishbones-updater.key
 TAURI_SIGNING_KEY_PASSWORD  ?=
 
 ## Post-build: sign everything with hardened runtime + rebuild DMG

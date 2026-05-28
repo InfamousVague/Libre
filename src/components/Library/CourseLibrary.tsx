@@ -34,17 +34,17 @@ import { useT } from "../../i18n/i18n";
 import "./CourseLibrary.css";
 
 /// Library display mode persistence key. `shelf` = tall 2:3 book-cover
-/// cards. `grid` (the default) = the information-dense card grid.
+/// cards (the default). `grid` = the information-dense card grid.
 /// User's choice persists in localStorage.
 ///
-/// Default is grid (info-dense). Users who explicitly picked shelf
-/// (and persisted that pick) keep it; everyone else — first-time
-/// visitors AND people who never touched the toggle — lands on grid.
-/// Inverted from the original "shelf default" after user feedback that
-/// the dense-info card view is more useful at a glance for someone
-/// deciding what to open.
+/// Default is shelf — the chibi-Pixar covers ARE the brand surface, and
+/// "what's on my shelf" reads faster than a grid of metadata blocks
+/// once the artwork is uniform. Users who explicitly pick grid (and
+/// persist that pick) keep it; everyone else lands on shelf. This
+/// flips an earlier "grid default" call back to where the design
+/// originally landed.
 const VIEW_MODE_STORAGE_KEY = "libre:library-view-mode";
-const VIEW_MODE_DEFAULT: ViewMode = "grid";
+const VIEW_MODE_DEFAULT: ViewMode = "shelf";
 
 interface Props {
   courses: Course[];

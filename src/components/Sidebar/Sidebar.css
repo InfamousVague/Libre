@@ -894,8 +894,233 @@
   color: #ef6f6f;
 }
 
-/* The recent-courses cover-thumbnail carousel was retired here —
-   course-switching is now handled by the open lesson tabs above
-   the workbench. All `.libre__carousel*` rules that used to live
-   below this comment were removed alongside the component. */
+/* ---------------------------------------------------------------------
+   Recent-courses carousel
+   Horizontal scroll row of 2:3 cover thumbnails at the top of the
+   sidebar. Purpose: quick course-switching without scrolling the full
+   tree. Hidden when there are fewer than 2 courses — the component
+   itself short-circuits so there's no empty band.
+   --------------------------------------------------------------------- */
+.libre__carousel {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  flex-shrink: 0;
+}
 
+/* The inner scrollable row. overflow-x: auto + hidden scrollbar keeps
+   the UI quiet. Generous padding ALL FOUR SIDES so hover-scaled
+   thumbnails have room to grow before the overflow clips them — scale
+   1.12 on a 111px card adds ~7px top/bottom and ~4.5px left/right, so
+   14px vertical / 16px horizontal padding leaves breathing room. The
+   matching negative margin keeps the scrollable area flush with the
+   sidebar edges despite the internal padding. */
+.libre__carousel-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 14px 16px;
+}
+
+.libre__carousel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Individual thumbnail card. 2:3 aspect (74×111). The sidebar is 260px
+   wide — a 74px thumbnail gives ~3 visible at a time with generous
+   gutter, which feels like a shelf rather than a cramped strip. Hover
+   lifts + deepens shadow; active course gets a bright ring. */
+.libre__carousel-item {
+  position: relative;
+  flex-shrink: 0;
+  width: 74px;
+  height: 111px;
+  padding: 0;
+  background: var(--color-bg-tertiary);
+  border: 0;
+  border-radius: var(--libre-radius-sm);
+  /* Clip the cover + progress strip to the rounded corners. The strip
+     sits flush to the bottom edge of the cover; without clipping its
+     fill would square off the corners. */
+  overflow: hidden;
+  cursor: pointer;
+  /* No drop shadow — the sidebar carousel sits on a compact surface
+     where a shadow stacked against the background felt heavy. The
+     hover scale alone is enough lift. */
+  /* z-index reserve so the hover-scaled thumbnail lifts above its
+     siblings instead of getting clipped by them. */
+  z-index: 0;
+  transition: transform 0.18s ease, z-index 0s linear 0.18s;
+  transform-origin: center center;
+}
+
+.libre__carousel-item:hover {
+  /* Zoom on hover — feels like picking up a book. Transform-origin is
+     center so the scale radiates in place without shifting neighbors.
+     Scale 1.12 is enough to feel like a deliberate magnification while
+     still fitting inside the carousel's 14×16 inner padding — any
+     higher gets clipped by the scroll container's overflow. */
+  transform: scale(1.12);
+  z-index: 2;
+  /* Eliminate the delayed z-index reset on the hover state so the card
+     jumps to the top immediately rather than after transform settles. */
+  transition: transform 0.18s ease, z-index 0s linear 0s;
+}
+
+/* Cover <img> still needs to respect the card's rounded corners since
+   the button itself no longer clips. */
+.libre__carousel-cover {
+  border-radius: var(--libre-radius-sm);
+}
+
+/* Dark gradient fading from transparent (top) to near-opaque (bottom)
+   so the title + author overlay stays legible on any cover art.
+   Mirrors `.libre-book-shadow` from the library shelf, just
+   scaled for the 74×111 carousel thumb. */
+.libre__carousel-shadow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62%;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.65) 40%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+}
+
+/* Title + author stack at the bottom of the carousel thumb. Smaller
+   type than the library shelf (the card is ~40% the size) but same
+   hierarchy: bold title clamped to 2 lines, thinner author on one
+   line with ellipsis. Padding keeps the text off the very edge and
+   above the progress strip. */
+.libre__carousel-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 5px 6px 7px;
+  color: var(--color-text-primary, #fff);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.libre__carousel-label-title {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.7);
+}
+
+.libre__carousel-label-author {
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.6);
+}
+
+/* Progress strip along the bottom edge of each carousel cover — gives
+   the learner an at-a-glance "how far am I in each book" signal. Thin
+   (2px) so it reads as a tick mark rather than a chrome element, with
+   the same warm gold fill used on the library shelf progress. The track
+   sits below the cover edge but inside the card's rounded clip. */
+.libre__carousel-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.libre__carousel-progress-fill {
+  display: block;
+  height: 100%;
+  /* Warm cream (#d4c5a1, the wordmark mid-stroke). Routed through
+     `--color-accent` so all progress + accent surfaces share one
+     theme-tunable token; the previous indirection via the now-
+     retired `--fb-bone-color` was a holdover from the bone palette. */
+  background: var(--color-accent, #d4c5a1);
+  transition: width 0.25s ease;
+}
+
+/* Reduced-motion users get the outline + shadow change but no zoom —
+   avoids the scale-up that some users find disorienting. */
+@media (prefers-reduced-motion: reduce) {
+  .libre__carousel-item,
+  .libre__carousel-item:hover {
+    transform: none;
+    transition: outline-color var(--libre-motion-snappy), box-shadow var(--libre-motion-snappy);
+  }
+}
+
+/* Cover image fills the card edge-to-edge. object-fit: cover so non-
+   2:3 PDFs (rare but possible — some books render slightly off) don't
+   letterbox. */
+.libre__carousel-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fallback tile when no cover exists. Language-tinted background
+   (see modifier rules below) + a small 2-letter glyph centered.
+   Echoes the BookCover fallback so the visual language is consistent
+   between the library and the sidebar carousel. */
+.libre__carousel-item--no-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.libre__carousel-glyph {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--color-text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Language accents for the fallback tiles. Same hue family as the
+   library shelf so a JS book reads the same in both views. */
+.libre__carousel-item--no-cover.libre__carousel-item--lang-javascript {
+  background: linear-gradient(135deg, #e6b800 0%, #b38a00 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-typescript {
+  background: linear-gradient(135deg, #3178c6 0%, #215388 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-python {
+  background: linear-gradient(135deg, #3a7ab8 0%, #f6c23f 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-rust {
+  background: linear-gradient(135deg, #d26a3b 0%, #7a3b1f 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-swift {
+  background: linear-gradient(135deg, #fa7343 0%, #b74e2c 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-go {
+  background: linear-gradient(135deg, #00add8 0%, #007a99 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-web {
+  background: linear-gradient(135deg, #e54c28 0%, #1f7abf 100%);
+}
+.libre__carousel-item--no-cover.libre__carousel-item--lang-threejs {
+  background: linear-gradient(135deg, #2a2a2a 0%, #555 100%);
+}

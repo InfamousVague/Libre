@@ -2142,7 +2142,9 @@ export default function App() {
             activeCourseId={view === "courses" ? activeCourse?.id : undefined}
             activeLessonId={view === "courses" ? activeLesson?.id : undefined}
             completed={completed}
+            recents={recentCourses}
             onSelectLesson={selectLesson}
+            onSelectCourse={openCourseFromLibrary}
             onLibrary={() => setView("library")}
             onExportCourse={exportCourse}
             onDeleteCourse={deleteCourseFromLibrary}
