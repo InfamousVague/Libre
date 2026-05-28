@@ -49,7 +49,7 @@ INSTALL_PATH  := /Applications/Libre.app
 # its own public/learn/, builds the Vite site, and rsyncs the result to
 # /var/www/libre-academy on the VPS. Override if your laptop has the
 # academy repo somewhere else.
-ACADEMY_ROOT ?= $(ROOT)/../../Web/libre-academy
+ACADEMY_ROOT ?= $(ROOT)/../../Web/libre.academy
 
 # --- iOS / watchOS run config ---------------------------------------------
 WATCH_ROOT      := /Users/matt/Development/Apps/LibreWatch
