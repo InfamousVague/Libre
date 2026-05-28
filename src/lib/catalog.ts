@@ -143,6 +143,15 @@ const RETIRED_PACK_IDS: ReadonlySet<string> = new Set([
   "functional-light-javascript",
   "functional-light-js",
   "learning-zig",
+  // 2026-05-28 cleanup — pruned from bundled-packs in v1.3.8. Filter
+  // them client-side too so any v1.3.7 install whose localStorage
+  // catalog cache has them won't keep rendering the tiles until SWR
+  // revalidation kicks in.
+  "hellotrade",
+  "open-data-structures",
+  "pro-git",
+  "svelte-tutorial",
+  "tauri-2-fundamentals",
 ]);
 
 export function isRetiredPack(id: string): boolean {
