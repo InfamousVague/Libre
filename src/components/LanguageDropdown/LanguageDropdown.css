@@ -74,9 +74,16 @@
 }
 
 .libre-langdrop__chevron {
-  font-size: 10px;
-  opacity: 0.6;
-  margin-left: 2px;
+  /* Flex slot for the chevron-down <Icon> (sm = 16px lucide
+     stroke). The previous unicode `▾` glyph rendered at 10px
+     which read as a stray dot at the chip's edge; a proper
+     stroked icon at 16px reads cleanly as "this is a dropdown."
+     Slight opacity drop so the chevron stays subordinate to the
+     flag + label that are doing the identification work. */
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  opacity: 0.7;
 }
 
 /* ─── Menu ──────────────────────────────────────────────── */

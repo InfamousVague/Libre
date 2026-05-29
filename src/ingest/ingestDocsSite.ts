@@ -116,7 +116,7 @@ export async function ingestDocsSite(opts: DocsIngestOptions): Promise<Course> {
   };
 
   // Resolve the model pin so the stats panel can cost out tokens.
-  let currentModel = modelOverride ?? "claude-sonnet-4-5";
+  let currentModel = modelOverride ?? "claude-sonnet-4-8";
   if (!modelOverride) {
     try {
       const s = await invoke<{ anthropic_model?: string }>("load_settings");
@@ -630,13 +630,13 @@ function capitalize(w: string): string {
 }
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-5": { input: 3, output: 15 },
-  "claude-opus-4-5": { input: 15, output: 75 },
-  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-4-8": { input: 3, output: 15 },
+  "claude-opus-4-8": { input: 15, output: 75 },
+  "claude-haiku-4-8": { input: 1, output: 5 },
 };
 
 function costFor(model: string, inputTokens: number, outputTokens: number): number {
-  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-5"];
+  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-8"];
   return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "@base/primitives/icon";
 import { check } from "@base/primitives/icon/icons/check";
 import "@base/primitives/icon/icon.css";
@@ -6,7 +6,43 @@ import type { QuizLesson, QuizQuestion } from "../../data/types";
 import { normalizeAnswer } from "../../data/types";
 import { onCommand as onVerifierCommand } from "../../lib/verify/bus";
 import { fireHaptic } from "../../lib/haptics";
+import { renderMarkdown } from "../Lesson/markdown";
 import "./QuizView.css";
+
+/// Render an arbitrary markdown source through the lesson renderer
+/// (markdown-it + Shiki) and mount the resulting HTML imperatively.
+/// Used by quiz prompts + explanations so authored fenced code
+/// (```rust let x = …```) renders as a real syntax-highlighted code
+/// block instead of a wall of backtick-prefixed text.
+///
+/// Imperative innerHTML (not `dangerouslySetInnerHTML`) for the same
+/// reason `LessonReader` uses this pattern: React 19 re-builds the
+/// children on every render the prop is present even when the
+/// string is identical, which would re-mount Shiki output on every
+/// state tick (every keystroke / hover) inside the quiz card.
+function QuizMarkdown({
+  source,
+  className,
+}: {
+  source: string;
+  className?: string;
+}) {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [html, setHtml] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    void renderMarkdown(source).then((rendered) => {
+      if (!cancelled) setHtml(rendered);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
+  useLayoutEffect(() => {
+    if (el && el.innerHTML !== html) el.innerHTML = html;
+  }, [el, html]);
+  return <div ref={setEl} className={className} />;
+}
 
 interface Props {
   lesson: QuizLesson;
@@ -166,7 +202,10 @@ function QuestionCard({
       <div className="libre-quiz-num">{index + 1}</div>
       <div className="libre-quiz-q-body">
         <div className="libre-quiz-prompt-row">
-          <div className="libre-quiz-prompt">{question.prompt}</div>
+          <QuizMarkdown
+            source={question.prompt}
+            className="libre-quiz-prompt"
+          />
           {state.status === "wrong" && (
             <span
               className="libre-quiz-retry-pill"
@@ -192,7 +231,10 @@ function QuestionCard({
           <ShortAnswer question={question} state={state} onResult={onResult} />
         )}
         {state.status !== "unanswered" && question.explanation && (
-          <div className="libre-quiz-explanation">{question.explanation}</div>
+          <QuizMarkdown
+            source={question.explanation}
+            className="libre-quiz-explanation"
+          />
         )}
       </div>
     </div>

@@ -13,27 +13,27 @@ const AVG_TOKENS_PER_PAGE = {
 };
 
 const MODEL_PRICES: Record<ModelId, { inputPerM: number; outputPerM: number; label: string; hint: string }> = {
-  "claude-haiku-4-5": {
+  "claude-haiku-4-8": {
     inputPerM: 0.8,
     outputPerM: 4,
-    label: "Haiku 4.5",
+    label: "Haiku 4.8",
     hint: "Fastest + cheapest. OK for smaller sites.",
   },
-  "claude-sonnet-4-5": {
+  "claude-sonnet-4-8": {
     inputPerM: 3,
     outputPerM: 15,
-    label: "Sonnet 4.5",
+    label: "Sonnet 4.8",
     hint: "Solid baseline. Recommended default.",
   },
-  "claude-opus-4-5": {
+  "claude-opus-4-8": {
     inputPerM: 15,
     outputPerM: 75,
-    label: "Opus 4.5",
+    label: "Opus 4.8",
     hint: "Highest quality. Best for reference docs.",
   },
 };
 
-type ModelId = "claude-haiku-4-5" | "claude-sonnet-4-5" | "claude-opus-4-5";
+type ModelId = "claude-haiku-4-8" | "claude-sonnet-4-8" | "claude-opus-4-8";
 
 /// Language roster for docs courses. Same subset we use elsewhere —
 /// the pipeline's `generate_lesson_from_docs_page` supports all of
@@ -83,7 +83,7 @@ export default function DocsImportDialog({ onDismiss, onStart }: Props) {
   const [maxPages, setMaxPages] = useState<number>(DEFAULT_MAX_PAGES);
   const [maxDepth, setMaxDepth] = useState<number>(DEFAULT_MAX_DEPTH);
   const [embedImages, setEmbedImages] = useState<boolean>(true);
-  const [model, setModel] = useState<ModelId>("claude-sonnet-4-5");
+  const [model, setModel] = useState<ModelId>("claude-sonnet-4-8");
   const [urlError, setUrlError] = useState<string | null>(null);
 
   // Auto-suggest a title from the URL until the user edits the title

@@ -160,35 +160,13 @@
   cursor: pointer;
 }
 
-/* Hover: 3D wobble that swings the ticket left and right so the
-   holographic foil catches different angles — same shimmer
-   treatment the full cert page uses, just scaled down. The
-   keyframe drives `--mini-cert-r` (registered above as an
-   `<angle>` so it can be transitioned) through wide left/right
-   swings; the rest of the cert's transform pipeline picks up
-   the value via `transform: rotateY(var(--mini-cert-r))` on the
-   base rule. When the cursor leaves, the animation is removed
-   and the `transition: --mini-cert-r 2.8s ease-out` on the base
-   rule eases the value back to its resting 0° — visually that
-   reads as the wobble playing in reverse to the origin rather
-   than snapping flat. */
-.libre-mini-cert--interactive:hover {
-  animation: libre-mini-cert-wobble 4.5s ease-in-out infinite;
-}
-
-@keyframes libre-mini-cert-wobble {
-  /* Wobble both directions around the resting tilt so the cert
-     swings left, right, and back. Amplitudes (-9° / +11°) are
-     scaled down from the full cert page's (-10° / +12°) to suit
-     the smaller surface, and the asymmetric peaks keep the
-     motion feeling organic instead of metronomic. The 0% / 100%
-     frames match the resting value so the loop seams cleanly. */
-  0%   { --mini-cert-r: 0deg; }
-  25%  { --mini-cert-r: -9deg; }
-  50%  { --mini-cert-r: 11deg; }
-  75%  { --mini-cert-r: 3deg; }
-  100% { --mini-cert-r: 0deg; }
-}
+/* Hover-driven 3D wobble retired — the sidebar mini cert no
+   longer reacts to the cursor. The ambient breathe + foil drift
+   on the base rule still play (those are the always-on
+   personality); we just don't want the ticket leaping around
+   every time the pointer crosses the sidebar. The keyframe that
+   used to drive `--mini-cert-r` on hover was deleted with this
+   block — nothing else references it. */
 
 .libre-mini-cert--interactive:focus-visible {
   outline: 2px solid rgba(0, 0, 0, 0.45);
@@ -535,14 +513,9 @@
        are still visible, just static. */
     animation: none;
   }
-  /* Kill the hover wobble keyframe — both `animation` (the new
-     wobble) and `transform` (the legacy scale-fallback) so a
-     reduced-motion user gets a perfectly still ticket on hover
-     regardless of which property the active rule was driving. */
-  .libre-mini-cert--interactive:hover {
-    animation: none;
-    transform: none;
-  }
+  /* (The hover-wobble keyframe was retired, so no per-hover
+     reduced-motion override is needed any more — the still-cert
+     state matches what reduced-motion users want by default.) */
   .libre-mini-cert {
     transition: none;
   }

@@ -25,6 +25,8 @@ import {
   BINDING_ACTIONS,
   bindingsByCategory,
   formatBinding,
+  formatBindingParts,
+  isMac,
   getBinding,
   resetAllBindings,
   setBinding,
@@ -94,10 +96,7 @@ export default function ShortcutsPane() {
       <div className="libre-shortcuts-pane libre-shortcuts-pane--carded">
         {groups.map(({ category, actions }) => (
           <SettingsCard key={category} title={category}>
-            <ul
-              className="libre-shortcuts-pane__rows"
-              style={{ margin: 0, padding: 0 }}
-            >
+            <ul className="libre-shortcuts-pane__rows">
               {actions.map((action) => (
                 <ShortcutRow
                   key={action.id}
@@ -170,7 +169,38 @@ function ShortcutRow({ action, editing, onStartEdit, onStopEdit, t }: RowProps) 
               combo: formatBinding(current!),
             })}
           >
-            <kbd>{formatBinding(current!)}</kbd>
+            {/* One <kbd> per key part (modifiers first, main key
+                last) so each renders as its own visible key cap
+                inside the chip's "input"-style container. Non-Mac
+                callers get a `+` separator between caps the way
+                native shortcut UIs (VSCode, Slack) display them;
+                Mac concatenates with no glue since the chord
+                glyphs (⌘⇧⌥) already read as a sequence. */}
+            <span className="libre-shortcuts-pane__keys" aria-hidden>
+              {formatBindingParts(current!).flatMap((part, i, arr) => {
+                const cap = (
+                  <kbd
+                    key={`k${i}`}
+                    className="libre-shortcuts-pane__key"
+                  >
+                    {part}
+                  </kbd>
+                );
+                const needsPlus = !isMac() && i < arr.length - 1;
+                return needsPlus
+                  ? [
+                      cap,
+                      <span
+                        key={`p${i}`}
+                        className="libre-shortcuts-pane__key-plus"
+                        aria-hidden
+                      >
+                        +
+                      </span>,
+                    ]
+                  : [cap];
+              })}
+            </span>
             <Icon icon={pencil} size="xs" color="currentColor" />
           </button>
         )}

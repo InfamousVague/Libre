@@ -134,7 +134,7 @@ if (!optDry) {
   }
 }
 
-const MODEL = "claude-sonnet-4-5";
+const MODEL = "claude-sonnet-4-8";
 const SYSTEM_PROMPT = (locale) => `You translate technical educational content from English into ${LOCALE_ENGLISH_NAMES[locale]}.
 
 Strict rules:

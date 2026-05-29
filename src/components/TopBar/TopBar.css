@@ -40,7 +40,13 @@
    On Windows/Linux the OS window controls live on the right, so this empty
    leader just acts as a small gutter. */
 .libre__topbar-window-controls {
-  width: 88px;
+  /* Reserves the title-bar zone the macOS traffic lights AND the
+     fixed-position sidebar toggle (left: 90px, width: 28px → ends
+     at x=118) sit in. Was 88px when only the traffic lights lived
+     here; bumped to 138 so the tab strip starts at x=138 with a
+     ~20px gap past the chip's right edge instead of colliding
+     with it. */
+  width: 138px;
   flex-shrink: 0;
   height: 100%;
 }

@@ -28,7 +28,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             anthropic_api_key: None,
-            anthropic_model: "claude-sonnet-4-5".to_string(),
+            anthropic_model: "claude-sonnet-4-8".to_string(),
             openai_api_key: None,
         }
     }
@@ -52,7 +52,31 @@ pub fn read_from_disk(app: &tauri::AppHandle) -> anyhow::Result<Settings> {
         return Ok(Settings::default());
     }
     let raw = fs::read_to_string(&path)?;
-    Ok(serde_json::from_str(&raw)?)
+    let mut settings: Settings = serde_json::from_str(&raw)?;
+    migrate_model(&mut settings.anthropic_model);
+    Ok(settings)
+}
+
+/// In-place migration for the persisted `anthropic_model`. Without
+/// this, a user who saved a settings.json back when the default was
+/// `claude-sonnet-4-5` stays pinned to the 4.5 generation forever —
+/// bumping the in-code default only helps fresh installs. The
+/// generation suffix is a mechanical `-4-5` → `-4-8` swap; the bare
+/// tier aliases (`claude-sonnet-4-8` etc.) resolve to the latest
+/// snapshot at the API. Any model string we don't recognise (a
+/// hand-edited custom pin) is left untouched.
+fn migrate_model(model: &mut String) {
+    const UPGRADES: &[(&str, &str)] = &[
+        ("claude-sonnet-4-5", "claude-sonnet-4-8"),
+        ("claude-opus-4-5", "claude-opus-4-8"),
+        ("claude-haiku-4-5", "claude-haiku-4-8"),
+    ];
+    for (old, new) in UPGRADES {
+        if model == old {
+            *model = (*new).to_string();
+            return;
+        }
+    }
 }
 
 /// Replace the in-memory settings with the active profile's

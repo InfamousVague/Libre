@@ -12,6 +12,7 @@ import { Icon } from "@base/primitives/icon";
 import { libraryBig } from "@base/primitives/icon/icons/library-big";
 import "@base/primitives/icon/icon.css";
 import Sidebar from "./components/Sidebar/Sidebar";
+import SidebarToggle from "./components/Sidebar/SidebarToggle";
 import NavigationRail from "./components/NavigationRail/NavigationRail";
 import TopBar from "./components/TopBar/TopBar";
 import { Tour } from "./components/Tour/Tour";
@@ -1061,6 +1062,13 @@ export default function App() {
     },
   );
 
+  // Hover-reveal is handled in CSS via `:has()` — see App.css. We
+  // tried a JS sidebarHover state first but the synthetic onMouse-
+  // Enter/Leave events fired unreliably over the Tauri overlay
+  // title-bar zone (the OS-level drag-region detection intercepts
+  // pointer hits before React's event system sees them on macOS
+  // Tauri builds). Native CSS :hover bypasses that entirely.
+
   // Sandbox projects state — lifted to App level so the project
   // switcher + file tree rendered in the sidebar slot (when
   // view === "sandbox") and SandboxView's editor share one source
@@ -1951,10 +1959,29 @@ export default function App() {
 
   return (
     <div
-      className={`libre ${
-        sidebarCollapsed ? "libre--sidebar-collapsed" : ""
-      }`}
+      className={[
+        "libre",
+        sidebarCollapsed ? "libre--sidebar-collapsed" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
+      {/* Fixed top-left sidebar toggle + invisible hover bridge,
+          parked to the right of the macOS traffic lights (the
+          window is `titleBarStyle: "Overlay"` so we paint into
+          the title-bar zone). Click pins / un-pins; hover (when
+          pinned-collapsed) reveals the 300px course-tree sidebar
+          as a floating overlay above content. The 56px navigation
+          rail is NEVER touched by this toggle — it remains
+          permanently docked at the left edge. The reveal is
+          CSS-driven via `:has()` on `.libre--sidebar-collapsed`
+          for reliability over Tauri's drag-region zone. */}
+      <SidebarToggle
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+        ariaLabel={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+        title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+      />
       {/* Static bootloader — black surface + the spinning ribbon-
           snake + "loading…" label. Pinned over the app while the
           course list is still loading; fades out via the
@@ -2134,27 +2161,38 @@ export default function App() {
             vs-grid branch on the active course's body. The
             Sandbox sidebar is its own thing entirely; it doesn't
             participate in that variant. */}
-        {view === "sandbox" ? (
-          <SandboxSidebar projects={sandboxProjects} />
-        ) : (
-          <Sidebar
-            courses={courses}
-            activeCourseId={view === "courses" ? activeCourse?.id : undefined}
-            activeLessonId={view === "courses" ? activeLesson?.id : undefined}
-            completed={completed}
-            recents={recentCourses}
-            onSelectLesson={selectLesson}
-            onSelectCourse={openCourseFromLibrary}
-            onLibrary={() => setView("library")}
-            onExportCourse={exportCourse}
-            onDeleteCourse={deleteCourseFromLibrary}
-            onCourseSettings={(id) => setCourseSettingsId(id)}
-            onResetLesson={clearLessonCompletion}
-            onResetChapter={clearChapterCompletions}
-            onResetCourse={clearCourseCompletions}
-            onCertificates={() => setView("certificates")}
-          />
-        )}
+        {/* Sidebar wrap. When pinned-open the wrap is
+            `display: contents` so the Sidebar inside lays out as
+            a normal flex child of `.libre__body`; when pinned-
+            collapsed the wrap collapses to zero width and the
+            Sidebar inside flips to `position: fixed` so it
+            floats as a dropdown overlay (revealed via CSS
+            `:has(:hover)` on the toggle + sidebar — see
+            App.css). The 56px navigation rail (a sibling of
+            this wrap, NOT a descendant) stays untouched. */}
+        <div className="libre__sidebar-wrap">
+          {view === "sandbox" ? (
+            <SandboxSidebar projects={sandboxProjects} />
+          ) : (
+            <Sidebar
+              courses={courses}
+              activeCourseId={view === "courses" ? activeCourse?.id : undefined}
+              activeLessonId={view === "courses" ? activeLesson?.id : undefined}
+              completed={completed}
+              recents={recentCourses}
+              onSelectLesson={selectLesson}
+              onSelectCourse={openCourseFromLibrary}
+              onLibrary={() => setView("library")}
+              onExportCourse={exportCourse}
+              onDeleteCourse={deleteCourseFromLibrary}
+              onCourseSettings={(id) => setCourseSettingsId(id)}
+              onResetLesson={clearLessonCompletion}
+              onResetChapter={clearChapterCompletions}
+              onResetCourse={clearCourseCompletions}
+              onCertificates={() => setView("certificates")}
+            />
+          )}
+        </div>
 
         <main className="libre__main">
           {view === "profile" ? (

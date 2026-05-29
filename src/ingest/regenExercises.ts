@@ -96,7 +96,7 @@ export async function regenerateExercises(opts: RegenOptions): Promise<void> {
     inputTokens: 0,
     outputTokens: 0,
     estimatedCostUsd: 0,
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-8",
   };
   // Count target exercises up front so progress has a denominator.
   for (const ch of course.chapters) {

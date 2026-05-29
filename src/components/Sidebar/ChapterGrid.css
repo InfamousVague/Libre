@@ -150,13 +150,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Generous interior padding so the lesson-kind icon (rendered at
-     Icon size="xs" ≈ 12px) has breathing room inside the cell
-     instead of butting against the border. Combined with the
-     `aspect-ratio: 1/1` rule, padding effectively shrinks the
-     icon's visual size relative to the cell — exactly the look
-     the user asked for. */
-  padding: 4px;
+  /* Tight interior padding — the lesson-kind icon now renders at
+     Icon size="base" (~18px) and the cells are ~28px, so a flat
+     2px gutter leaves a clean visible margin without crowding
+     the glyph. (Was 4px when the icon was xs ≈ 12px.) */
+  padding: 2px;
   aspect-ratio: 1 / 1;
   /* Subtle lifted fill so the cell reads against the dark chapter
      card. The earlier `background: transparent` left the cells
@@ -247,14 +245,12 @@
   z-index: 1;
 }
 
-/* Hologram overlay slot on completed cells — the white --done
-   background still sits below as the base; the foil composites
-   on top via plus-lighter. Inherits the cell's 5px corner
-   rounding via the Hologram primitive's `border-radius:
-   inherit` rule. */
-.libre-chgrid__cell-holo {
-  border-radius: 5px;
-}
+/* The `.libre-chgrid__cell-holo` hologram-overlay slot was
+   retired alongside the completed-cell foil — the cell's white
+   --done background + the kind icon now carry the done state on
+   their own. (Rule removed; `position: relative` and
+   `overflow: hidden` on the cell itself were the only other
+   pieces that supported the foil, and they're harmless to keep.) */
 
 /* The bottom "peek" strip that used to summarise the hovered
    cell's lesson title was retired in favour of per-cell <Tooltip>

@@ -20,9 +20,10 @@ use crate::settings::SettingsState;
 const ANTHROPIC_API: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 // Model is now picked per-user in Settings (anthropic_model) and read fresh
-// on each call. Default set in settings::Settings::default is sonnet-4-5.
+// on each call. Default set in settings::Settings::default is sonnet-4-8.
 //
-// Sonnet 4.5 supports up to 64k output tokens. 32k comfortably holds:
+// The 4.x Sonnet/Opus family supports up to 64k output tokens. 64k
+// comfortably holds:
 //   - any single exercise lesson (prose + starter + solution + tests)
 //   - a full chapter's worth of clean_code repair (the Flanagan JS Async
 //     chapter needed ~22k out tokens; 16k was too tight)
@@ -31,10 +32,10 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 // Per-model output-token ceilings. Anthropic *errors* on over-request
 // (it does NOT silently clamp), so we have to send a value each model
 // actually supports:
-//   - Sonnet 3.7 (legacy)  128K with `output-128k-2025-02-19` beta header
-//   - Sonnet 4 / 4.5       64K   (the beta does NOT uplift the 4.x family)
-//   - Opus 4.x             64K
-//   - Haiku 4.5 and older  32K
+//   - Sonnet 3.7 (legacy)        128K with `output-128k-2025-02-19` beta header
+//   - Sonnet 4.x (4, 4.5, 4.8)   64K   (the beta does NOT uplift the 4.x family)
+//   - Opus 4.x                   64K
+//   - Haiku 4.x                  32K
 // 64K is the modern default — enough for the biggest clean_code /
 // generate_lesson responses we emit, which peak around 40K tokens for a
 // long chapter. The Sonnet 3.7 128K path is preserved for users who pin
@@ -154,7 +155,7 @@ Return ONLY the repaired Markdown. No commentary, no code fences around the whol
         &cancel,
         system,
         &format!("Chapter: {chapter_title}\n\n---\n\n{raw_text}"),
-        Some("claude-sonnet-4-5"),
+        Some("claude-sonnet-4-8"),
         &format!("clean_code[{chapter_title}]"),
     )
     .await

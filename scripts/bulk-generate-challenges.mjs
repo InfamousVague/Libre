@@ -23,7 +23,7 @@
 /// Env:
 ///   PER_TIER=10        — challenges per (language, tier). Default 10.
 ///   DRY_RUN=1          — log what would be generated, don't call API.
-///   MODEL=claude-sonnet-4-5  — override the default model.
+///   MODEL=claude-sonnet-4-8  — override the default model.
 ///   CONCURRENCY=6      — parallel API calls within a pack. Default 6.
 ///   APPEND=1           — append to existing `challenges-<lang>-*` pack
 ///                        instead of writing a new one with random suffix.
@@ -41,7 +41,7 @@ const SETTINGS_PATH = path.join(APP_SUPPORT, "settings.json");
 
 const PER_TIER = Number(process.env.PER_TIER ?? 10);
 const DRY_RUN = !!process.env.DRY_RUN;
-const MODEL = process.env.MODEL ?? "claude-sonnet-4-5";
+const MODEL = process.env.MODEL ?? "claude-sonnet-4-8";
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY ?? 6));
 const APPEND = !!process.env.APPEND;
 const TIERS = ["easy", "medium", "hard"];
@@ -537,11 +537,11 @@ async function main() {
   // src/ingest/generateChallengePack.ts so cost estimates here line
   // up with the in-app dialog.
   const PRICING = {
-    "claude-sonnet-4-5": { in: 3, out: 15 },
-    "claude-opus-4-5": { in: 15, out: 75 },
-    "claude-haiku-4-5": { in: 1, out: 5 },
+    "claude-sonnet-4-8": { in: 3, out: 15 },
+    "claude-opus-4-8": { in: 15, out: 75 },
+    "claude-haiku-4-8": { in: 1, out: 5 },
   };
-  const p = PRICING[MODEL] || PRICING["claude-sonnet-4-5"];
+  const p = PRICING[MODEL] || PRICING["claude-sonnet-4-8"];
   let totalIn = 0,
     totalOut = 0;
   console.log("\nsummary:");

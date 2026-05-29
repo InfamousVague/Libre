@@ -261,9 +261,9 @@ const TOPICS: Partial<Record<LanguageId, string[]>> = {
 };
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-5": { input: 3, output: 15 },
-  "claude-opus-4-5": { input: 15, output: 75 },
-  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-4-8": { input: 3, output: 15 },
+  "claude-opus-4-8": { input: 15, output: 75 },
+  "claude-haiku-4-8": { input: 1, output: 5 },
 };
 
 function costFor(
@@ -271,7 +271,7 @@ function costFor(
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-5"];
+  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-8"];
   return (
     (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
   );
@@ -363,7 +363,7 @@ export async function generateChallengePack(
   // Resolve the model for stats display. If the backend command ends up
   // reading settings at call time, we still want a best-guess label here
   // so the cost bar isn't empty.
-  let displayModel = model ?? "claude-sonnet-4-5";
+  let displayModel = model ?? "claude-sonnet-4-8";
   if (!model) {
     try {
       const s = await invoke<{ anthropic_model?: string }>("load_settings");

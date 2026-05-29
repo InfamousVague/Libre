@@ -1,0 +1,106 @@
+/* Fixed-position sidebar-toggle chip in the macOS title-bar
+   overlay zone. The window is configured with
+   `titleBarStyle: Overlay` + `trafficLightPosition: { x: 18, y: 23 }`
+   in tauri.conf.json, so the traffic lights float over our app
+   chrome at the top-left. Each light is ~12px wide on a ~20px
+   pitch — close+min+max span roughly x=12 → x=70. We park the
+   chip at left=82 so it clears the green light by a comfortable
+   ~12px gap. */
+
+/* Bridge wrapper. Positions the toggle chip in the title-bar zone
+   AND carries the invisible hover bridge that connects the chip
+   to the revealed sidebar so the cursor can travel between them
+   without dropping the hover state. */
+.libre__sidebar-toggle-wrap {
+  position: fixed;
+  /* Center the 28px chip with the macOS traffic lights: Tauri's
+     `trafficLightPosition: { y: 23 }` puts the lights' centre at
+     y=23, so the chip's centre matches at top = 23 - 28/2 = 9px.
+     Nudged 2px above optical-centre per user feedback — the chip
+     reads as slightly low at perfect mathematical centre because
+     the icon's mass sits below its bounding-box midline. */
+  top: 7px;
+  /* Traffic lights span roughly x=12 → x=66 (3 lights × ~14px on
+     ~20px pitch starting at x=12). 90px gives a comfortable 24px
+     gap between the rightmost light and the chip's left edge. */
+  left: 90px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: flex-start;
+  /* Pointer-events are restricted to the visible chip + the
+     bridge (when armed) so empty space in the wrap doesn't steal
+     clicks from the topbar tabs / drag region underneath. */
+  pointer-events: none;
+}
+
+.libre__sidebar-toggle {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Compact 28×28 chip with a LARGE icon inside — the glyph
+     should dominate the chip the way a Lucide-style icon button
+     reads ("icon-first, frame-quiet"). The icon itself is
+     rendered at `size="lg"` (~22px) by the consumer, leaving a
+     ~3px gutter on each side of the chip. */
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  /* Transparent at rest — the chip should be invisible chrome,
+     not a button-shaped backdrop. The hover state below brings
+     in a subtle fill so the affordance is still discoverable. */
+  background: transparent;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+/* Invisible bridge: zero-size by default so it doesn't interfere
+   with the layout. When the sidebar is pinned-collapsed it
+   expands to cover the rectangle from the chip's right edge to
+   roughly where the revealed sidebar starts (left=10) and down
+   to its top edge (top=50). Transparent + pointer-events: auto
+   so `:hover` still fires for the CSS reveal rules in App.css. */
+.libre__sidebar-toggle-bridge {
+  display: block;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.libre--sidebar-collapsed .libre__sidebar-toggle-bridge {
+  position: absolute;
+  /* The revealed sidebar drops down directly below the chip
+     (top: 56px, left: 82px = aligned with the chip's left edge
+     — see the `:has(:hover)` rules in App.css). With the chip
+     now 28px tall starting at wrap-top y=9, the chip ends at
+     absolute y=37; the sidebar starts at y=56. The bridge spans
+     the 19px gap (with a couple pixels of overlap above and
+     below so the cursor's :hover state never blinks out on the
+     transition). 300px wide matches the sidebar so the cursor
+     can drift sideways under the chip without losing hover. */
+  top: 28px;
+  left: 0;
+  width: 300px;
+  height: 30px;
+  pointer-events: auto;
+}
+
+.libre__sidebar-toggle:hover {
+  background: var(--color-bg-elevated, rgba(255, 255, 255, 0.08));
+  color: var(--color-text-primary, #fff);
+}
+
+.libre__sidebar-toggle:focus-visible {
+  outline: 2px solid var(--color-accent, #d4c5a1);
+  outline-offset: 2px;
+}
+
+/* Web build only — no Tauri title-bar overlay, no traffic-light
+   inset to account for. Tuck the chip to the page's true top-
+   left corner instead. */
+[data-platform="web"] .libre__sidebar-toggle {
+  left: 10px;
+}

@@ -42,7 +42,7 @@ const COURSE_ID = process.env.COURSE_ID ?? "mastering-ethereum";
 const COUNT = Number(process.env.COUNT ?? 20);
 const START = Number(process.env.START ?? 0);
 const DRY_RUN = !!process.env.DRY_RUN;
-const MODEL = process.env.MODEL ?? "claude-sonnet-4-5";
+const MODEL = process.env.MODEL ?? "claude-sonnet-4-8";
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY ?? 4));
 
 /// Topic + difficulty buckets the LLM rotates through. Each entry is
@@ -535,11 +535,11 @@ async function main() {
   writeFileSync(handle.path, JSON.stringify(handle.course, null, 2), "utf-8");
 
   const PRICING = {
-    "claude-sonnet-4-5": { in: 3, out: 15 },
-    "claude-opus-4-5": { in: 15, out: 75 },
-    "claude-haiku-4-5": { in: 1, out: 5 },
+    "claude-sonnet-4-8": { in: 3, out: 15 },
+    "claude-opus-4-8": { in: 15, out: 75 },
+    "claude-haiku-4-8": { in: 1, out: 5 },
   };
-  const p = PRICING[MODEL] || PRICING["claude-sonnet-4-5"];
+  const p = PRICING[MODEL] || PRICING["claude-sonnet-4-8"];
   const usd = (totalIn / 1_000_000) * p.in + (totalOut / 1_000_000) * p.out;
   console.log(
     `\n[evm-gen] tokens in=${totalIn.toLocaleString()} out=${totalOut.toLocaleString()} ≈ $${usd.toFixed(2)}`,

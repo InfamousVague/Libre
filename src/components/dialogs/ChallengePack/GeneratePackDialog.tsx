@@ -19,27 +19,27 @@ const AVG_TOKENS_PER_CHALLENGE = {
 /// cheapest + fastest, Sonnet is the default, Opus is the highest-quality
 /// option — matches the user's "$50-150 ceiling on Opus" decision.
 const MODEL_PRICES: Record<ModelId, { inputPerM: number; outputPerM: number; label: string; hint: string }> = {
-  "claude-haiku-4-5": {
+  "claude-haiku-4-8": {
     inputPerM: 0.8,
     outputPerM: 4,
-    label: "Haiku 4.5",
+    label: "Haiku 4.8",
     hint: "Fastest, cheapest. Good for drafts.",
   },
-  "claude-sonnet-4-5": {
+  "claude-sonnet-4-8": {
     inputPerM: 3,
     outputPerM: 15,
-    label: "Sonnet 4.5",
+    label: "Sonnet 4.8",
     hint: "Solid baseline. Recommended for bulk packs.",
   },
-  "claude-opus-4-5": {
+  "claude-opus-4-8": {
     inputPerM: 15,
     outputPerM: 75,
-    label: "Opus 4.5",
+    label: "Opus 4.8",
     hint: "Highest quality. Tests are more robust.",
   },
 };
 
-type ModelId = "claude-haiku-4-5" | "claude-sonnet-4-5" | "claude-opus-4-5";
+type ModelId = "claude-haiku-4-8" | "claude-sonnet-4-8" | "claude-opus-4-8";
 
 export interface GeneratePackOptions {
   language: LanguageId;
@@ -69,7 +69,7 @@ const MAX_COUNT = 200;
 export default function GeneratePackDialog({ onDismiss, onStart }: Props) {
   const [language, setLanguage] = useState<LanguageId>("rust");
   const [count, setCount] = useState<number>(DEFAULT_COUNT);
-  const [model, setModel] = useState<ModelId>("claude-opus-4-5");
+  const [model, setModel] = useState<ModelId>("claude-opus-4-8");
 
   const estimatedCostUsd = useMemo(() => {
     const price = MODEL_PRICES[model];

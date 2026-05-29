@@ -73,7 +73,7 @@ export async function runPipeline(opts: PipelineOptions): Promise<Course> {
   const { pdfPath, bookId, title, author, language, onProgress, onEvent, onStats, signal } = opts;
 
   // Detect the model we're currently running under so stats can cost it out.
-  let currentModel = "claude-sonnet-4-5";
+  let currentModel = "claude-sonnet-4-8";
   try {
     const s = await invoke<{ anthropic_model?: string }>("load_settings");
     if (s.anthropic_model) currentModel = s.anthropic_model;

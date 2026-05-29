@@ -22,6 +22,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Icon } from "@base/primitives/icon";
+import { chevronDown } from "@base/primitives/icon/icons/chevron-down";
+import "@base/primitives/icon/icon.css";
 import {
   LOCALE_FLAGS,
   LOCALE_NAMES,
@@ -192,7 +195,7 @@ export default function LanguageDropdown({
         </span>
         <span className="libre-langdrop__label">{LOCALE_NAMES[locale]}</span>
         <span className="libre-langdrop__chevron" aria-hidden>
-          ▾
+          <Icon icon={chevronDown} size="sm" color="currentColor" />
         </span>
       </button>
       {/* Menu renders into `document.body` so ancestor

@@ -13,7 +13,7 @@
 /// Usage:
 ///   node scripts/regenerate-weak-challenges.mjs
 ///   DRY_RUN=1 node scripts/regenerate-weak-challenges.mjs   # preview
-///   MODEL=claude-opus-4-5 node scripts/...                  # stronger model
+///   MODEL=claude-opus-4-8 node scripts/...                  # stronger model
 ///   KATA_LANG=python node scripts/...                       # one language
 ///
 /// Cost: Sonnet is ~$0.02 per lesson. 37 weak lessons ≈ $0.75 total.
@@ -31,7 +31,7 @@ const COURSES_DIR =
 const SETTINGS_PATH = path.join(APP_SUPPORT, "settings.json");
 
 const DRY_RUN = !!process.env.DRY_RUN;
-const MODEL = process.env.MODEL ?? "claude-sonnet-4-5";
+const MODEL = process.env.MODEL ?? "claude-sonnet-4-8";
 const LANG_FILTER = process.env.KATA_LANG ?? null;
 
 // The system prompt mirrors the tightened version in

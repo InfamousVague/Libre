@@ -47,8 +47,6 @@ import {
   completionKey,
   lessonStatus,
 } from "./variants/types";
-import Hologram from "../Shared/Hologram";
-import { useIsRunning } from "../../hooks/useRunStatus";
 import { useT } from "../../i18n/i18n";
 import "./ChapterGrid.css";
 
@@ -80,13 +78,12 @@ export default function ChapterGrid({
   onChapterContextMenu,
 }: Props) {
   const t = useT();
-  // When a lesson run is executing (LessonView or PoppedWorkbench
-  // toggles this via `setRunStatus`), every completed cell's
-  // hologram switches from its slow ambient drift into the faster
-  // organic "excited" mode. Reads as: the learner kicked off a
-  // run, and the chapter's earned-foil cells visibly come alive
-  // in sync. Falls back to ambient when the run finishes.
-  const isRunning = useIsRunning();
+  // (The previous `useIsRunning()` hook here drove an
+  // `excited`-foil mode on each completed cell's holographic
+  // overlay; both the hologram and the run-status plumbing it
+  // depended on are gone now. If a future "currently running"
+  // visual returns, re-import `useIsRunning` and key the new
+  // treatment off it.)
 
   // The id of the chapter that contains the currently-active lesson
   // (or null if no lesson is active). Used as the auto-open target
@@ -229,31 +226,20 @@ export default function ChapterGrid({
                           { n: i + 1, title: lesson.title },
                         )}
                       >
-                        {/* Completed cells get a hologram overlay so
-                            the done state reads as "earned,
-                            holographic" rather than just "filled
-                            white." The cell's white background
-                            remains the base — the foil composites
-                            on top via the primitive's plus-lighter
-                            blend. The icon glyph stays above the
-                            foil via the cell's own z-index rules
-                            in ChapterGrid.css. `excited` flips the
-                            foil into its faster organic loop while
-                            a lesson run is executing — see
-                            src/hooks/useRunStatus.ts. */}
-                        {status === "done" && (
-                          <Hologram
-                            surface="dark"
-                            intensity="vivid"
-                            excited={isRunning}
-                            sparkle="snake"
-                            className="libre-chgrid__cell-holo"
-                          />
-                        )}
+                        {/* The holographic-snake foil that used to
+                            overlay completed cells was retired —
+                            the done state now reads from the white
+                            fill + kind icon alone, with no foil
+                            competing for the small cell space. The
+                            `isRunning` / `excited` plumbing stays
+                            in scope for a future treatment if we
+                            re-introduce a "currently running"
+                            visual; for now the cell relies on its
+                            own state class for that distinction. */}
                         {status === "done" ? (
                           <Icon
                             icon={iconForKind(lesson.kind)}
-                            size="xs"
+                            size="base"
                             color="currentColor"
                           />
                         ) : (

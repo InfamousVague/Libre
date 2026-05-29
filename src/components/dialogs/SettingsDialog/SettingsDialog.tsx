@@ -11,6 +11,7 @@ import {
   type ThemeName,
 } from "../../../theme/themes";
 import { resetAccount } from "../../../lib/resetAccount";
+import { isMobile } from "../../../lib/platform";
 import { useT } from "../../../i18n/i18n";
 import type { UseLibreCloud } from "../../../hooks/useLibreCloud";
 import type { RealtimeSyncHandle } from "../../../hooks/useRealtimeSync";
@@ -88,7 +89,7 @@ export default function SettingsDialog({
   const [section, setSection] = useState<SectionId>("general");
   const [apiKey, setApiKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
-  const [model, setModel] = useState<string>("claude-sonnet-4-5");
+  const [model, setModel] = useState<string>("claude-sonnet-4-8");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +167,12 @@ export default function SettingsDialog({
     return PANES.filter((p) => {
       if (p.id === "account" && !accountAvailable) return false;
       if (p.id === "developer" && !devUnlocked) return false;
+      // Hide the Haptics pane on desktop — taptic feedback only
+      // exists on iOS / phone-form-factor surfaces where the
+      // hardware actually wires up to the OS. On macOS / Windows /
+      // Linux every cue would no-op, so showing the pane is just
+      // dead controls.
+      if (p.id === "haptics" && !isMobile) return false;
       return true;
     }).map((p) => {
       // Swap the Account pane's hint when signed out so the rail

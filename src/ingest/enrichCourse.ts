@@ -54,9 +54,9 @@ interface EnrichPayload {
 }
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-5": { input: 3, output: 15 },
-  "claude-opus-4-5": { input: 15, output: 75 },
-  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-4-8": { input: 3, output: 15 },
+  "claude-opus-4-8": { input: 15, output: 75 },
+  "claude-haiku-4-8": { input: 1, output: 5 },
 };
 
 function costFor(
@@ -64,7 +64,7 @@ function costFor(
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-5"];
+  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-8"];
   return (
     (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output
   );
@@ -124,7 +124,7 @@ export async function enrichCourse(opts: EnrichCourseOptions): Promise<void> {
 
   // Resolve the active model for cost display. Same pattern as
   // regenExercises / generateChallengePack.
-  let displayModel = "claude-sonnet-4-5";
+  let displayModel = "claude-sonnet-4-8";
   try {
     const s = await invoke<{ anthropic_model?: string }>("load_settings");
     if (s.anthropic_model) displayModel = s.anthropic_model;

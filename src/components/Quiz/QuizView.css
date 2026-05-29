@@ -89,6 +89,59 @@
   min-width: 0;
 }
 
+/* Markdown-rendered prompt + explanation content: tame the default
+   <p> / <pre> / inline <code> spacing so authored prose + fenced
+   code reads cleanly inside the quiz card. Fenced blocks come from
+   the lesson markdown pipeline (Shiki output wrapped in
+   `.libre-code-block`); we just need to set width/margins. Inline
+   `<code>` gets a subtle pill so single-token references like
+   `Option::Some` stand out from prose. */
+.libre-quiz-prompt p,
+.libre-quiz-explanation p {
+  margin: 0 0 8px;
+}
+
+.libre-quiz-prompt p:last-child,
+.libre-quiz-explanation p:last-child {
+  margin-bottom: 0;
+}
+
+.libre-quiz-prompt code,
+.libre-quiz-explanation code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+}
+
+.libre-quiz-prompt pre,
+.libre-quiz-explanation pre,
+.libre-quiz-prompt .libre-code-block,
+.libre-quiz-explanation .libre-code-block {
+  margin: 8px 0;
+  /* The card itself constrains width; let the code block fit and
+     scroll horizontally for over-long lines rather than blowing out
+     the row width. */
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Inline-`code` styling above adds a border that would visually
+   double on top of the syntax-highlighted block (which has its own
+   chrome via .libre-code-block); strip the inline rules when the
+   <code> is actually inside a Shiki pre. */
+.libre-quiz-prompt pre code,
+.libre-quiz-explanation pre code,
+.libre-quiz-prompt .libre-code-block code,
+.libre-quiz-explanation .libre-code-block code {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: inherit;
+}
+
 /* Row that holds the prompt + the "ask AI" badge. Display:flex so
    the badge sits at the top-right of the prompt regardless of
    prompt length. */

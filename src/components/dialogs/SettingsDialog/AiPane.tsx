@@ -17,17 +17,17 @@ import { useT } from "../../../i18n/i18n";
 
 const MODEL_OPTIONS: Array<{ id: string; labelKey: string; hintKey: string }> = [
   {
-    id: "claude-sonnet-4-5",
+    id: "claude-sonnet-4-8",
     labelKey: "settings.sonnetLabel",
     hintKey: "settings.sonnetHint",
   },
   {
-    id: "claude-opus-4-5",
+    id: "claude-opus-4-8",
     labelKey: "settings.opusLabel",
     hintKey: "settings.opusHint",
   },
   {
-    id: "claude-haiku-4-5",
+    id: "claude-haiku-4-8",
     labelKey: "settings.haikuLabel",
     hintKey: "settings.haikuHint",
   },

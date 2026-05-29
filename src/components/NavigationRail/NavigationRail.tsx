@@ -32,8 +32,6 @@ import { route } from "@base/primitives/icon/icons/route";
 import { terminal as terminalIcon } from "@base/primitives/icon/icons/terminal";
 import { settings as settingsIcon } from "@base/primitives/icon/icons/settings";
 import { circleHelp } from "@base/primitives/icon/icons/circle-help";
-import { panelLeftClose } from "@base/primitives/icon/icons/panel-left-close";
-import { panelLeftOpen } from "@base/primitives/icon/icons/panel-left-open";
 import { play as playIcon } from "@base/primitives/icon/icons/play";
 import { Tooltip } from "@base/primitives/tooltip";
 import "@base/primitives/icon/icon.css";
@@ -174,8 +172,11 @@ export default function NavigationRail({
   onSandbox,
   onSettings,
   onStartTour,
-  onToggleSidebar,
-  sidebarCollapsed,
+  // `onToggleSidebar` / `sidebarCollapsed` are still declared on
+  // the props interface so existing call sites pass through
+  // without a refactor, but the rail no longer renders the
+  // toggle — that moved to the fixed `<SidebarToggle />` chip
+  // anchored next to the macOS traffic lights (see App.tsx).
 }: NavigationRailProps) {
   const t = useT();
   // Sliding-pill indicator: a single absolutely-positioned element
@@ -352,17 +353,13 @@ export default function NavigationRail({
             very bottom (conventional Mac-app spot) with help docked
             one row up so the "I need a hint" affordance sits beside
             the knob it usually nudges the user toward. */}
-        {onToggleSidebar && (
-          <RailItem
-            icon={sidebarCollapsed ? panelLeftOpen : panelLeftClose}
-            label={formatShortcutForTitle(
-              sidebarCollapsed ? t("nav.showSidebar") : t("nav.hideSidebar"),
-              "app.toggle-sidebar",
-            )}
-            onClick={onToggleSidebar}
-            pressed={sidebarCollapsed}
-          />
-        )}
+        {/* The sidebar toggle that used to live here was moved to a
+            fixed-position chip just to the right of the macOS
+            traffic lights (see `<SidebarToggle />` in App.tsx).
+            The `onToggleSidebar` / `sidebarCollapsed` props are
+            still accepted on this component so existing call
+            sites pass through cleanly — they're just unused in
+            the rail now. */}
         <NotificationDrawer />
         {onStartTour && (
           <RailItem

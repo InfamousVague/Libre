@@ -269,8 +269,69 @@ button {
 /* Collapsed-sidebar mode: sidebar drops out of flow so the main pane
    reclaims the full width. Toggle via Cmd/Ctrl+\ or the top-bar
    button; state persists in localStorage. */
+/* The sidebar-wrap is what the layout actually allocates space
+   for. Pinned-open: wrap is in the flex flow at full sidebar
+   width. Pinned-collapsed: wrap collapses to zero width so the
+   content takes over the row; the sidebar inside it switches to
+   `position: fixed` so it can hover-reveal as an overlay without
+   pushing content. */
+.libre__sidebar-wrap {
+  display: contents;
+}
+
+.libre--sidebar-collapsed .libre__sidebar-wrap {
+  /* `display: contents` would leave the sidebar in flow; switch
+     the wrap to a fixed-size flex item that takes ZERO space so
+     the main pane gets the row. The sidebar inside becomes an
+     overlay (see Sidebar.css). */
+  display: block;
+  width: 0;
+  flex: 0 0 0;
+  position: relative;
+}
+
 .libre--sidebar-collapsed .libre__sidebar {
-  display: none;
+  /* Lifted out of flow → drops down as a floating card directly
+     below the toggle chip (Claude-style). Anchored at the chip's
+     left edge (x=82 — see SidebarToggle.css `.libre__sidebar-
+     toggle-wrap`); top sits at 56 so it clears the 36px chip plus
+     a 10px gap. Height is capped so it's a card, not a full-
+     viewport column.
+     Reset the base `margin: 10px 0 10px 10px` so it doesn't
+     compound with the explicit top/left offsets here. */
+  margin: 0;
+  position: fixed;
+  top: 56px;
+  left: 82px;
+  bottom: auto;
+  max-height: min(72vh, 720px);
+  z-index: 85; /* above content, below modals (200) */
+  /* Fade + lift in from 8px above. `transform: translateY` keeps
+     the card's drop-shadow hidden cleanly when tucked. */
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+/* Reveal-on-hover: native CSS `:has()` so the trigger is the
+   browser's own :hover detection (not a JS state). Three hover
+   sources keep the sidebar open — any one of them being hovered
+   reveals it:
+     1. The toggle chip in the title-bar zone.
+     2. The bridge zone connecting chip → sidebar.
+     3. The revealed sidebar itself.
+   That covers the full cursor path without any race conditions
+   or debounce timers. WKWebView on macOS 13.4+ supports `:has()`;
+   the floor matches Tauri 2's macOS deployment target. */
+.libre--sidebar-collapsed:has(.libre__sidebar-toggle:hover) .libre__sidebar,
+.libre--sidebar-collapsed:has(.libre__sidebar-toggle-bridge:hover) .libre__sidebar,
+.libre--sidebar-collapsed:has(.libre__sidebar:hover) .libre__sidebar {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Boot loader — full-app overlay shown until the initial courses list

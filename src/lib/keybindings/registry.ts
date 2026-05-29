@@ -169,7 +169,7 @@ export const BINDING_CATEGORIES: ReadonlyArray<BindingCategory> = [
 
 // ── Platform-aware formatting ─────────────────────────────────────
 
-function isMac(): boolean {
+export function isMac(): boolean {
   try {
     return (
       typeof navigator !== "undefined" &&
@@ -209,10 +209,12 @@ function formatKeyLabel(key: string): string {
   }
 }
 
-/// Render a combo as a human-readable string. Mac uses the symbol
-/// glyphs (⌘⇧⌥) concatenated tightly ("⌘⇧R"); Windows / Linux use
-/// the Ctrl/Shift/Alt names with `+` separators ("Ctrl+Shift+R").
-export function formatBinding(combo: BindingCombo): string {
+/// Split a combo into its individual key labels: modifiers first
+/// (in canonical order), then the main key. UI callers that want
+/// to render each key as its own visible key-cap chip consume this
+/// directly; `formatBinding` joins them into the legacy string
+/// representation for tooltips / aria-labels.
+export function formatBindingParts(combo: BindingCombo): string[] {
   const mac = isMac();
   const parts: string[] = [];
   for (const mod of combo.modifiers) {
@@ -221,7 +223,14 @@ export function formatBinding(combo: BindingCombo): string {
     if (mod === "shift") parts.push(mac ? "⇧" : "Shift");
   }
   parts.push(formatKeyLabel(combo.key));
-  return parts.join(mac ? "" : "+");
+  return parts;
+}
+
+/// Render a combo as a human-readable string. Mac uses the symbol
+/// glyphs (⌘⇧⌥) concatenated tightly ("⌘⇧R"); Windows / Linux use
+/// the Ctrl/Shift/Alt names with `+` separators ("Ctrl+Shift+R").
+export function formatBinding(combo: BindingCombo): string {
+  return formatBindingParts(combo).join(isMac() ? "" : "+");
 }
 
 // ── Override persistence ──────────────────────────────────────────

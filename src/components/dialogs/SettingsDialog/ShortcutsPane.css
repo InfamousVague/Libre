@@ -108,7 +108,14 @@
 .libre-shortcuts-pane__rows {
   list-style: none;
   margin: 0;
-  padding: 0;
+  /* The SettingsCard title sits at `padding: 16px 20px 0` so the
+     "APP / NAVIGATION / …" eyebrow is inset 20px from the card
+     edge. Mirror that inset on the rows + add 4px bottom so the
+     items sit a hair below the title and the card's bottom edge
+     has breathing room instead of clipping flush against the
+     last row. The row's own internal padding handles per-side
+     hover-target sizing without changing the visible alignment. */
+  padding: 4px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -120,7 +127,9 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 12px;
+  /* 8px horizontal so total inset (12px on __rows + 8px here) =
+     20px from card edge — aligned with the section title. */
+  padding: 10px 8px;
   border-radius: var(--libre-radius-md, 8px);
   transition: background 120ms ease;
 }
@@ -158,44 +167,80 @@
 
 /* ---- Binding chip ---------------------------------------------- */
 
+/* The chip is the "input"-shaped container that groups the key
+   caps + the edit pencil. Heavier border + recessed surface so it
+   reads as a form field rather than a button, with the actual
+   pressable caps living inside it. */
 .libre-shortcuts-pane__chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px 5px 12px;
-  background: color-mix(in srgb, var(--color-bg-elevated, rgba(255, 255, 255, 0.05)) 100%, transparent);
+  padding: 4px 6px 4px 8px;
+  background: var(--color-bg-primary, rgba(0, 0, 0, 0.25));
   border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.1));
   border-radius: var(--libre-radius-md, 8px);
   color: var(--color-text-secondary);
   cursor: pointer;
   transition:
-    color 120ms ease,
     background 120ms ease,
     border-color 120ms ease;
 }
 
 .libre-shortcuts-pane__chip:hover {
-  color: var(--color-text-primary);
   border-color: var(--color-accent, #f3a93a);
 }
 
-.libre-shortcuts-pane__chip kbd {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  background: none;
-  border: none;
-  padding: 0;
-  letter-spacing: 0.02em;
-  /* Mac chord glyphs (⌘⇧⌥) are a hair smaller than ASCII chars at
-     the same font-size; nudge up so the chip feels balanced. */
-  line-height: 1;
+/* Inner flex group that holds the individual <kbd> caps + any
+   non-Mac `+` glue between them. */
+.libre-shortcuts-pane__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
+/* Each modifier or main key renders as a real keyboard-cap-shaped
+   chip. Sized to ~22px tall so the combo reads as a row of
+   physical keys, not a thin text label. */
+.libre-shortcuts-pane__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.14));
+  /* Subtle bottom shadow so each cap has the slightly-pressed-up
+     feel of a real key. */
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* "+" glue between caps on non-Mac platforms. Lighter weight +
+   colour than the caps so the row reads as caps with separators
+   rather than caps + caps + caps. */
+.libre-shortcuts-pane__key-plus {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary, rgba(255, 255, 255, 0.45));
+  user-select: none;
+}
+
+/* Overridden binding: accent the chip border + tint each key cap
+   so the custom state is visible at a glance. */
 .libre-shortcuts-pane__chip--custom {
-  border-color: color-mix(in srgb, var(--color-accent, #f3a93a) 50%, var(--color-border-default) 50%);
-  background: color-mix(in srgb, var(--color-accent, #f3a93a) 6%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent, #f3a93a) 55%, var(--color-border-default) 45%);
+  background: color-mix(in srgb, var(--color-accent, #f3a93a) 6%, var(--color-bg-primary, rgba(0, 0, 0, 0.25)));
+}
+
+.libre-shortcuts-pane__chip--custom .libre-shortcuts-pane__key {
+  border-color: color-mix(in srgb, var(--color-accent, #f3a93a) 45%, var(--color-border-default) 55%);
 }
 
 /* Pencil icon inside the chip — subtler than the kbd label so it
