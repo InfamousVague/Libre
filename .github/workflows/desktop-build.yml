@@ -326,7 +326,14 @@ jobs:
   macos-release:
     name: macOS (signed + notarized)
     needs: build
-    if: github.ref_type == 'tag'
+    # DISABLED: codesign hangs ~indefinitely on macos-latest runners
+    # (every run for v1.3.11+ got force-cancelled at the 6-hour limit
+    # mid-`security set-key-partition-list`/codesign flow). Mac builds
+    # ship via the maintainer's local `make deploy` instead — see the
+    # `build-update-manifest` job below for how the manifest now merges
+    # local Mac uploads with CI's Linux + Windows builds. Flip to
+    # `github.ref_type == 'tag'` once the keychain-access hang is fixed.
+    if: false
     runs-on: macos-latest
     permissions:
       contents: write
@@ -463,12 +470,25 @@ jobs:
   # platform's updater bundle. tauri-action's per-job latest.json
   # output gets clobbered by whichever matrix entry uploads last —
   # this job runs ONCE after the matrix and rebuilds the manifest
-  # from the release's actual assets, so all 3 platforms appear.
+  # from the release's actual assets.
+  #
+  # NOTE: macos-release was removed from `needs:` (was `[build, macos-release]`)
+  # because the hosted macOS runner's codesign step has been hanging for
+  # 6 hours and getting force-cancelled on every tag-push run for weeks.
+  # Each cancellation took the unified-manifest job with it, so latest.json
+  # ended up frozen on whichever tauri-action per-job upload happened to win
+  # the race. Mac builds now happen exclusively via the maintainer's local
+  # `make deploy`, which uploads the signed/notarized Mac assets to the
+  # release AND re-runs this same script — so the final manifest carries
+  # Mac too. The CI manifest written here covers just Linux + Windows;
+  # local re-run merges Mac in. (If you ever fix the CI codesign hang, add
+  # macos-release back to `needs:` to restore the all-in-CI flow.)
+  #
   # Tag-push only; smoke-test runs (push-to-main) skip it because
   # there's no release to attach a manifest to.
   build-update-manifest:
     name: Build OTA updater manifest
-    needs: [build, macos-release]
+    needs: [build]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-22.04
     permissions:
@@ -478,9 +498,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Runs after build (Linux/Windows) AND macos-release (signed
-      # Mac dmg + OTA tarball) have uploaded their assets, so the
-      # rebuilt latest.json covers all three platforms.
       - name: Assemble latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

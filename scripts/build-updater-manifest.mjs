@@ -59,6 +59,15 @@ const REPO = "InfamousVague/Libre.academy";
 /// Map a Tauri updater asset filename → (platform key, raw url) pair.
 /// Platform keys follow the conventions Tauri's updater expects, see
 /// https://v2.tauri.app/plugin/updater/#platform-keys
+///
+/// One installer per platform key wins — when multiple assets classify
+/// the same way (e.g. CI uploads both .deb and .rpm for Linux), the
+/// LAST one through the for-loop in main wins. The `priority()` helper
+/// below sorts assets so the preferred installer goes through last and
+/// ends up in the manifest. Preference order:
+///   Linux:   .AppImage.tar.gz > .AppImage > .deb > .rpm
+///   Windows: -setup.exe (NSIS) > .nsis.zip > .msi
+///   macOS:   .app.tar.gz   (only OTA-compatible format)
 function classify(name) {
   // macOS — `.app.tar.gz` / `Libre_x_aarch64.app.tar.gz`
   if (name.endsWith(".app.tar.gz")) {
@@ -71,23 +80,43 @@ function classify(name) {
     // is explicit.
     return "darwin-aarch64";
   }
-  // Linux — `.AppImage.tar.gz` (the Tauri updater AppImage delta
-  // wrapper) preferred, but Tauri 2 + the post-matrix manifest job
-  // also produce raw `.AppImage` / `.deb` / `.rpm` with sibling
-  // `.sig` files. Match those too so Linux entries appear in
-  // latest.json.
+  // Linux — full preference list. `.AppImage.tar.gz` (Tauri's
+  // updater delta wrapper) is the canonical OTA format; raw
+  // `.AppImage`, `.deb`, `.rpm` are CI's fallbacks for distros
+  // that the user installs directly. All map to `linux-x86_64`
+  // since Tauri's updater client only checks the base key.
   if (name.endsWith(".AppImage.tar.gz")) return "linux-x86_64";
   if (name.endsWith(".AppImage")) return "linux-x86_64";
-  // Windows — Tauri 2 emits `.exe` (NSIS installer) and `.msi`
-  // directly, NOT `.nsis.zip`/`.msi.zip` (Tauri 1 wrappers). The
-  // updater calls the .exe with silent-install flags. Prefer
-  // `.exe` over `.msi` since NSIS supports the updater's silent-
-  // background-install path; .msi requires admin elevation.
+  if (name.endsWith(".deb")) return "linux-x86_64";
+  if (name.endsWith(".rpm")) return "linux-x86_64";
+  // Windows — `-setup.exe` (NSIS) is preferred because it supports
+  // the updater's silent-background-install path; `.msi` requires
+  // UAC elevation. `.nsis.zip` is the Tauri-1-era wrapper format,
+  // still accepted for back-compat.
   if (name.endsWith("-setup.exe") || name.endsWith(".nsis.zip")) {
     if (/aarch64|arm64/.test(name)) return "windows-aarch64";
     return "windows-x86_64";
   }
+  if (name.endsWith(".msi")) {
+    if (/aarch64|arm64/.test(name)) return "windows-aarch64";
+    return "windows-x86_64";
+  }
   return null;
+}
+
+/// Lower number = higher preference. Used to sort assets so the
+/// preferred installer for each platform overwrites the lesser ones
+/// in the platforms map (which is a last-write-wins object).
+function priority(name) {
+  if (name.endsWith(".app.tar.gz")) return 0;
+  if (name.endsWith(".AppImage.tar.gz")) return 1;
+  if (name.endsWith("-setup.exe")) return 2;
+  if (name.endsWith(".nsis.zip")) return 3;
+  if (name.endsWith(".AppImage")) return 4;
+  if (name.endsWith(".deb")) return 5;
+  if (name.endsWith(".rpm")) return 6;
+  if (name.endsWith(".msi")) return 7;
+  return 99;
 }
 
 /// Fetch the release as JSON via gh CLI. We use --jq to project just
@@ -99,7 +128,12 @@ const releaseJson = execSync(
 const release = JSON.parse(releaseJson);
 
 /// First pass: collect every (asset, sibling-sig) pair, classified by
-/// platform. Skip anything we don't recognise.
+/// platform. Skip anything we don't recognise. Walk assets in
+/// REVERSE-priority order so the preferred installer for each
+/// platform is processed LAST and ends up in the manifest (the
+/// platforms map is last-write-wins). Without the sort, .rpm could
+/// overwrite .deb (or .msi could overwrite .nsis) just based on
+/// upload order.
 const platforms = {};
 const sigByName = new Map();
 for (const a of release.assets) {
@@ -107,7 +141,10 @@ for (const a of release.assets) {
     sigByName.set(a.name.replace(/\.sig$/, ""), a);
   }
 }
-for (const a of release.assets) {
+const orderedAssets = [...release.assets].sort(
+  (a, b) => priority(b.name) - priority(a.name),
+);
+for (const a of orderedAssets) {
   const key = classify(a.name);
   if (!key) continue;
   const sigAsset = sigByName.get(a.name);
@@ -150,11 +187,45 @@ if (Object.keys(platforms).length === 0) {
   process.exit(1);
 }
 
+/// Merge with the existing manifest's platforms if one is present on
+/// this release. CI writes latest.json after Linux+Windows finish; the
+/// maintainer's local `make deploy` writes it again after the Mac
+/// upload. Whichever runs LAST without merging would wipe the other's
+/// platform keys — so we read existing first, then overlay only the
+/// keys we found assets for on this run. That gives us:
+///   - CI alone   → manifest has Linux + Windows
+///   - Mac local  → manifest has Mac + (whatever CI already wrote)
+///   - Either order, end state has all three.
+let mergedPlatforms = platforms;
+const existing = release.assets.find((a) => a.name === "latest.json");
+if (existing) {
+  const existingPath = join(tmpdir(), `libre-existing-manifest-${Date.now()}.json`);
+  try {
+    execSync(
+      `gh release download "${tag}" --repo "${REPO}" --pattern "latest.json" --output "${existingPath}" --clobber`,
+      { stdio: ["ignore", "ignore", "inherit"] },
+    );
+    const prior = JSON.parse(readFileSync(existingPath, "utf8"));
+    if (prior && typeof prior === "object" && prior.platforms) {
+      mergedPlatforms = { ...prior.platforms, ...platforms };
+      const merged = Object.keys(platforms);
+      const preserved = Object.keys(prior.platforms).filter((k) => !platforms[k]);
+      console.log(
+        `[updater] merged with existing manifest — overwriting ${merged.length} key(s) (${merged.join(", ")}), preserving ${preserved.length} (${preserved.join(", ") || "none"})`,
+      );
+    }
+  } catch (e) {
+    console.warn(`[updater] couldn't merge existing manifest (${e.message}); writing fresh`);
+  } finally {
+    try { unlinkSync(existingPath); } catch { /* ignore */ }
+  }
+}
+
 const manifest = {
   version: release.tagName,
   notes: (release.body || "").trim() || `Libre ${release.tagName}`,
   pub_date: release.publishedAt,
-  platforms,
+  platforms: mergedPlatforms,
 };
 
 // IMPORTANT: the file MUST be named exactly `latest.json` on disk
