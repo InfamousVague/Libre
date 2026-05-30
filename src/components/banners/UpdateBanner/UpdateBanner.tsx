@@ -44,14 +44,23 @@ type State =
   | { kind: "error"; message: string };
 
 interface UpdateBannerProps {
-  /// Open the Settings dialog. Wired from App.tsx so the
-  /// post-install "Restart now" affordance can redirect into the
-  /// Settings → General "Restart now" button instead of firing the
-  /// relaunch directly from a floating banner — per Notion issue
-  /// #a41bc772db92641f, the Settings surface is the canonical
-  /// restart path. Optional: when absent the banner falls back to
-  /// its previous direct-relaunch behaviour.
-  onOpenSettings?: () => void;
+  /// Open the Settings dialog. Wired from App.tsx for two distinct
+  /// flows that share one destination:
+  ///   - `available` state: the primary "Open Settings" button hands
+  ///     off to Settings → General with `autoCheckUpdates: true` so
+  ///     the check-for-updates button there auto-fires the moment
+  ///     the dialog mounts. Routing the download flow through that
+  ///     surface avoids the floating banner trying to install
+  ///     in-place (which fails opaquely when the manifest is
+  ///     mid-rotation — see commit 282ef0b) and gives the learner
+  ///     the richer Settings UI with release notes + progress.
+  ///   - `ready` state: the post-install "Restart now" affordance
+  ///     redirects into Settings → General's Restart button so the
+  ///     canonical restart path is one place — per Notion issue
+  ///     #a41bc772db92641f.
+  /// Optional in both flows: when absent the banner falls back to
+  /// in-place behaviour (download here / relaunch here).
+  onOpenSettings?: (opts?: { autoCheckUpdates?: boolean }) => void;
 }
 
 export function UpdateBanner({
@@ -192,6 +201,25 @@ export function UpdateBanner({
     }
   }, [onOpenSettings]);
 
+  /// Available-state primary action — instead of starting the install
+  /// in-place (the old onDownload flow), redirect into Settings →
+  /// General with autoCheckUpdates so the canonical check-for-updates
+  /// button there fires immediately. Settings has progress UI +
+  /// release-notes affordances the floating banner doesn't, and
+  /// rerouting through it sidesteps the "install fails silently
+  /// because the floating banner caught a stale manifest" failure
+  /// mode that used to dead-end the upgrade flow.
+  const onOpenInSettings = useCallback(() => {
+    if (onOpenSettings) {
+      onOpenSettings({ autoCheckUpdates: true });
+      return;
+    }
+    // No host wiring — fall back to the direct download so the toast
+    // doesn't become a dead button on legacy callers that haven't
+    // been updated to the new flow yet.
+    void onDownload();
+  }, [onOpenSettings, onDownload]);
+
   const onDismiss = useCallback(() => {
     if (state.kind !== "available") {
       // Mid-download dismiss does the same — record dismissal of
@@ -295,7 +323,7 @@ export function UpdateBanner({
           <button
             type="button"
             className="libre-update-banner__btn libre-update-banner__btn--primary"
-            onClick={() => void onDownload()}
+            onClick={onOpenInSettings}
           >
             {t("banners.install")}
           </button>

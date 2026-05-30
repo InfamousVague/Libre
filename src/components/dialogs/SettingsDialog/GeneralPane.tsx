@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@base/primitives/icon";
 import { check as checkIcon } from "@base/primitives/icon/icons/check";
 import { rocket } from "@base/primitives/icon/icons/rocket";
@@ -44,10 +44,26 @@ function isTauri(): boolean {
   );
 }
 
-export default function GeneralPane() {
+interface Props {
+  /// When set, fires `checkForUpdates()` exactly once on mount. Used by
+  /// the floating `UpdateBanner` to redirect "install" clicks through
+  /// Settings — the banner asks App.tsx to open this dialog with the
+  /// flag on, and we kick the check immediately so the learner lands
+  /// on a "checking… → available → install" surface without an extra
+  /// button press. The auto-fire is intentionally gated on a ref so a
+  /// parent re-render that flips the prop back to undefined doesn't
+  /// cancel the in-flight check.
+  autoCheckUpdates?: boolean;
+}
+
+export default function GeneralPane({ autoCheckUpdates }: Props = {}) {
   const t = useT();
   const [version, setVersion] = useState<string | null>(null);
   const [state, setState] = useState<UpdateState>({ kind: "idle" });
+  /// Ref guard so the auto-check fires exactly once per mount even
+  /// if React strict-mode double-invokes the effect or the parent
+  /// re-renders before the check completes.
+  const autoCheckFiredRef = useRef(false);
 
   // Read the current app version off the Tauri runtime. `getVersion`
   // returns whatever's in `tauri.conf.json` so this is the source of
@@ -95,6 +111,21 @@ export default function GeneralPane() {
       });
     }
   }, [t]);
+
+  /// Auto-fire `checkForUpdates()` once when the host opens this
+  /// pane with `autoCheckUpdates`. The ref guard ensures we don't
+  /// re-check if the prop stays true across re-renders, and the
+  /// `state.kind === "idle"` precondition skips the auto-fire when
+  /// the user has already kicked a check by hand. Mirrors the
+  /// `UpdateBanner` flow: toast click → host opens this dialog
+  /// with the flag → we synthesise the click.
+  useEffect(() => {
+    if (!autoCheckUpdates) return;
+    if (autoCheckFiredRef.current) return;
+    if (state.kind !== "idle") return;
+    autoCheckFiredRef.current = true;
+    void checkForUpdates();
+  }, [autoCheckUpdates, state.kind, checkForUpdates]);
 
   const downloadAndInstall = useCallback(async () => {
     if (!isTauri()) return;

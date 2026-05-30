@@ -21,7 +21,7 @@ import ModalBackdrop from "../../Shared/ModalBackdrop";
 import AccountSection from "./AccountSection";
 import AiPane from "./AiPane";
 import DeveloperPane from "./DeveloperPane";
-import ProfilesPane from "./ProfilesPane";
+import AccountsPane from "./AccountsPane";
 import GeneralPane from "./GeneralPane";
 import ShortcutsPane from "./ShortcutsPane";
 import SoundPane from "./SoundPane";
@@ -59,6 +59,15 @@ interface Props {
   /// (Tauri-only). When undefined we hide the Account section's
   /// sign-in CTA entirely.
   onRequestSignIn?: () => void;
+  /// When `true`, the General pane fires its check-for-updates
+  /// handler exactly once on mount. Used by the floating
+  /// `UpdateBanner` to redirect "install" clicks through Settings:
+  /// the toast hands off to App.tsx which opens this dialog with
+  /// this flag set, GeneralPane auto-triggers the check, and the
+  /// user lands on a "checking… → available → install" flow that
+  /// surfaces release notes + progress in one place. Reset by the
+  /// host on close so subsequent opens don't auto-check again.
+  autoCheckUpdates?: boolean;
 }
 
 interface Settings {
@@ -84,6 +93,7 @@ export default function SettingsDialog({
   history,
   courses,
   onRequestSignIn,
+  autoCheckUpdates,
 }: Props) {
   const t = useT();
   const [section, setSection] = useState<SectionId>("general");
@@ -324,7 +334,9 @@ export default function SettingsDialog({
                 have a body-header strip, and rendering the title
                 twice on migrated panes read as a layout bug. */}
 
-            {section === "general" && <GeneralPane />}
+            {section === "general" && (
+              <GeneralPane autoCheckUpdates={autoCheckUpdates} />
+            )}
 
             {section === "ai" && (
               <AiPane
@@ -356,7 +368,12 @@ export default function SettingsDialog({
 
             {section === "developer" && <DeveloperPane />}
 
-            {section === "profiles" && <ProfilesPane />}
+            {section === "accounts" && (
+              <AccountsPane
+                cloud={cloud}
+                onRequestSignIn={onRequestSignIn}
+              />
+            )}
 
             {section === "account" &&
               onRequestSignIn &&

@@ -233,6 +233,28 @@ export default function App() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [docsImportOpen, setDocsImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /// When the floating UpdateBanner's "Open" button hands the user
+  /// off to Settings, it sets this so the General pane auto-fires
+  /// its check-for-updates handler on mount. Reset on dialog close
+  /// so subsequent opens (Settings nav, version-tap dev-mode etc.)
+  /// don't keep auto-checking.
+  const [settingsAutoCheckUpdates, setSettingsAutoCheckUpdates] =
+    useState(false);
+  /// Single entry point for opening the Settings dialog. Optional
+  /// `autoCheckUpdates` routes the UpdateBanner's available-state
+  /// click through the canonical Settings check flow without each
+  /// caller having to touch two state slots in lockstep.
+  const openSettings = useCallback(
+    (opts?: { autoCheckUpdates?: boolean }) => {
+      setSettingsAutoCheckUpdates(opts?.autoCheckUpdates ?? false);
+      setSettingsOpen(true);
+    },
+    [],
+  );
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setSettingsAutoCheckUpdates(false);
+  }, []);
   // Sign-in modal state, opened by the "Sign in" button in the TopBar
   // stats dropdown. Kept separate from `FirstLaunchPrompt` (which has
   // its own one-time-show gate) so signed-out users can re-open it
@@ -2472,8 +2494,9 @@ export default function App() {
           realtime={realtime}
           history={history}
           courses={courses}
-          onDismiss={() => setSettingsOpen(false)}
+          onDismiss={closeSettings}
           onRequestSignIn={() => setSignInOpen(true)}
+          autoCheckUpdates={settingsAutoCheckUpdates}
         />
       )}
 
@@ -2719,7 +2742,7 @@ export default function App() {
           per Notion issue #a41bc772db92641f, the in-Settings
           restart button is the canonical surface and the banner
           should hand off there. */}
-      <UpdateBanner onOpenSettings={() => setSettingsOpen(true)} />
+      <UpdateBanner onOpenSettings={openSettings} />
 
       {/* First-launch sign-in nudge. Self-gates on
           `cloud.user === false` (= no token, not signed in) and on
