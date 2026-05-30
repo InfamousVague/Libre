@@ -33,15 +33,24 @@ const URL_OVERRIDE_KEY = "libre:cloud:url-override-v1";
 /// backend registry (hybrid model). Best-effort + desktop-only:
 /// web has no profile registry, and a registry write failing must
 /// never block sign-in. Fire-and-forget.
-function bindProfileCloudAccount(accountId: string | null): void {
+function bindProfileCloudAccount(
+  user: LibreCloudUser | null,
+): void {
   if (isWeb) return;
   void (async () => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const active = await invoke<string>("get_active_profile");
+      // Pass the cloud-side identity alongside the account id so
+      // the Accounts pane can render every entry's email + display
+      // name (not just the active one). Backend uses these to
+      // auto-rename placeholder ("Local" / "Untitled") profiles to
+      // the real cloud display name on first sign-in.
       await invoke("set_profile_cloud_account", {
         id: active,
-        cloudAccountId: accountId,
+        cloudAccountId: user ? user.id : null,
+        cloudEmail: user ? user.email ?? null : null,
+        cloudDisplayName: user ? user.display_name ?? null : null,
       });
     } catch {
       /* registry unavailable / older binary — non-fatal */
@@ -223,7 +232,7 @@ function writeUser(u: LibreCloudUser | null): void {
   // writeUser, so this one hook covers them all. Fire-and-forget;
   // a transient null during the OAuth handoff just unbinds then
   // re-binds on /me success (idempotent, converges correctly).
-  bindProfileCloudAccount(u ? u.id : null);
+  bindProfileCloudAccount(u);
 }
 function readUrlOverride(): string | null {
   try { return localStorage.getItem(URL_OVERRIDE_KEY); } catch { return null; }

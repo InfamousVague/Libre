@@ -7,10 +7,14 @@
    sidebar reading as a distinct floating panel against the flat
    `--color-bg-primary` floor it sits on top of. */
 .libre__sidebar {
-  /* 260 × 1.15 ≈ 299 → 300px. Wider sidebar gives long chapter
-     titles (e.g. "Chapter 14 · Memory allocators in practice")
-     enough horizontal room to read on one line instead of
-     wrapping. Multiples-of-10 keep the visual rhythm tidy. */
+  /* Standard 300px sidebar — wide enough for long chapter titles
+     like "Chapter 14 · Memory allocators in practice" without
+     stealing horizontal space from the lesson pane. The earlier
+     `clamp(300px, 33vw, 560px)` aimed for a 33/33/33 viewport
+     split, but at non-trivial window sizes that left the reader
+     + editor cramped; reverting to a fixed 300px gives the
+     workbench the room it actually needs and pairs cleanly with
+     the workbench's 50/50 editor-vs-reader default. */
   width: 300px;
   margin: 10px 0 10px 10px;
   /* Surface + border + rim/shadow read from --color-glass-* tokens

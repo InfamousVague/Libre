@@ -298,8 +298,14 @@ button {
      a 10px gap. Height is capped so it's a card, not a full-
      viewport column.
      Reset the base `margin: 10px 0 10px 10px` so it doesn't
-     compound with the explicit top/left offsets here. */
+     compound with the explicit top/left offsets here.
+     Width is locked back to the original 300px here — the
+     in-flow base width is now clamp(300px, 33vw, 560px) so the
+     pinned-open layout reads as 33/33/33, but a hover-reveal
+     popover claiming a third of the screen would feel intrusive,
+     so the floating overlay stays at the prior compact width. */
   margin: 0;
+  width: 300px;
   position: fixed;
   top: 56px;
   left: 82px;
@@ -426,10 +432,14 @@ button {
   flex-direction: column;
   /* First-paint fallback only — the Workbench writes an inline
      `width: NN%` here in `widthControlsParent` mode (default
-     62%, see Workbench.tsx). Bumped 48% → 62% so the pre-JS
-     paint matches the new default and the editor pane doesn't
-     visibly jump narrower→wider on first render. */
-  width: 62%;
+     50%, see Workbench.tsx). 50% gives an even reader|editor
+     split of the lesson pane; with a 300px sidebar that's the
+     vast majority of the viewport for the reading + coding
+     pair, which is the right priority for a learn-to-code app.
+     Was 62%; lowered so the first paint matches the new 50%
+     default and the editor doesn't visibly jump wider→narrower
+     on first render. */
+  width: 50%;
   min-width: 320px;
   max-width: 75%;
   margin-left: 10px;

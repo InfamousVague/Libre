@@ -23,7 +23,16 @@ export interface ProfileMeta {
   id: string;
   name: string;
   created_at: number;
+  /// Cloud account this entry represents. `null` is the "Local"
+  /// (unauthed) pool — the always-present first row in the
+  /// Accounts pane. Any non-null entry corresponds to a cloud
+  /// sign-in.
   cloud_account_id: string | null;
+  /// Cached cloud identity, populated on sign-in so the Accounts
+  /// pane can render every row's real email + display name
+  /// without each having to be the active session.
+  cloud_email: string | null;
+  cloud_display_name: string | null;
 }
 
 interface Registry {
@@ -36,9 +45,11 @@ const WEB_REGISTRY: Registry = {
   profiles: [
     {
       id: DEFAULT_PROFILE_ID,
-      name: "Default",
+      name: "Local",
       created_at: 0,
       cloud_account_id: null,
+      cloud_email: null,
+      cloud_display_name: null,
     },
   ],
 };

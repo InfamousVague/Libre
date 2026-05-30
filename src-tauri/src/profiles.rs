@@ -55,10 +55,21 @@ pub struct ProfileMeta {
     pub name: String,
     /// Unix ms.
     pub created_at: i64,
-    /// Optional bound cloud account id (the hybrid model: a profile
-    /// MAY link to a cloud account for sync). `None` = local-only.
+    /// Optional bound cloud account id. `None` = local-only (the
+    /// "Local" pseudo-account row in the Accounts pane). When set,
+    /// this entry represents a signed-in cloud account; the matching
+    /// token lives in this profile's localStorage namespace.
     #[serde(default)]
     pub cloud_account_id: Option<String>,
+    /// Cached cloud-side identity fields. The Accounts pane renders
+    /// every account in the list with its real email + display name,
+    /// not just the active one — so we stash these here on sign-in
+    /// (see frontend `bindProfileCloudAccount`) and re-render against
+    /// the cache. `None` until first successful sign-in completes.
+    #[serde(default)]
+    pub cloud_email: Option<String>,
+    #[serde(default)]
+    pub cloud_display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,10 +83,16 @@ impl Default for Registry {
         Registry {
             active: DEFAULT_ID.to_string(),
             profiles: vec![ProfileMeta {
+                // The reserved "default" id maps to the "Local"
+                // pseudo-account in the UI — the permanent
+                // unauthed pool that pre-rebrand single-pool
+                // data migrates into.
                 id: DEFAULT_ID.to_string(),
-                name: "Default".to_string(),
+                name: "Local".to_string(),
                 created_at: now_ms(),
                 cloud_account_id: None,
+                cloud_email: None,
+                cloud_display_name: None,
             }],
         }
     }
@@ -198,6 +215,17 @@ fn load_registry(app: &tauri::AppHandle) -> anyhow::Result<Registry> {
     }
     if !reg.profiles.iter().any(|p| p.id == reg.active) {
         reg.active = reg.profiles[0].id.clone();
+    }
+    // One-shot cosmetic migration: the reserved "default" entry was
+    // labelled "Default" pre-rebrand. The Accounts pane calls it
+    // "Local" (the unauthed-pool label). Only rename if the entry
+    // hasn't been hand-edited to something else AND has no cloud
+    // binding — a Default labelled with a real cloud display name
+    // is left alone.
+    if let Some(p) = reg.profiles.iter_mut().find(|p| p.id == DEFAULT_ID) {
+        if p.name == "Default" && p.cloud_account_id.is_none() {
+            p.name = "Local".to_string();
+        }
     }
     Ok(reg)
 }
@@ -363,6 +391,8 @@ pub fn create_profile(
         name: trimmed.to_string(),
         created_at: now_ms(),
         cloud_account_id: None,
+        cloud_email: None,
+        cloud_display_name: None,
     };
     reg.profiles.push(meta.clone());
     save_registry(&app, &reg).map_err(|e| e.to_string())?;
@@ -389,20 +419,61 @@ pub fn rename_profile(
     save_registry(&app, &reg).map_err(|e| e.to_string())
 }
 
-/// Optionally bind/unbind a cloud account to a profile (hybrid
-/// model). Pass `None` to unbind. Frontend calls this after a
-/// successful cloud sign-in within a profile.
+/// Bind / update / unbind a cloud account on a profile, AND
+/// stash the cloud-side identity (email + display name) so the
+/// Accounts pane can render every entry's real identity without
+/// having to be the active profile to see it.
+///
+/// Behaviour: passing `cloud_account_id = None` unbinds and ALSO
+/// clears the cached email + display name (those only make sense
+/// alongside a bound account). When the binding is set or the
+/// same cloud account refreshes its profile, pass the latest
+/// email + display_name; the registry uses them on next render.
+///
+/// Side effect: when the bound profile is the Default ("Local")
+/// row, also auto-rename it to the cloud display name — the
+/// "Local" label is only the right one when no cloud identity
+/// has stuck to it yet.
 #[tauri::command]
 pub fn set_profile_cloud_account(
     app: tauri::AppHandle,
     id: String,
     cloud_account_id: Option<String>,
+    cloud_email: Option<String>,
+    cloud_display_name: Option<String>,
 ) -> Result<(), String> {
     let mut reg = load_registry(&app).map_err(|e| e.to_string())?;
     let Some(p) = reg.profiles.iter_mut().find(|p| p.id == id) else {
         return Err(format!("unknown profile: {id}"));
     };
-    p.cloud_account_id = cloud_account_id;
+    p.cloud_account_id = cloud_account_id.clone();
+    if cloud_account_id.is_some() {
+        p.cloud_email = cloud_email.clone();
+        p.cloud_display_name = cloud_display_name.clone();
+        // Auto-rename a freshly-bound profile to the cloud display
+        // name unless the profile was deliberately custom-named —
+        // we consider the placeholder names ("Local", "Untitled",
+        // anything slug-shaped) replaceable. Hand-edited names are
+        // preserved.
+        let placeholder = p.name == "Local"
+            || p.name == "Untitled"
+            || p.name == "Untitled account"
+            || p.name.starts_with("Account ");
+        if placeholder {
+            if let Some(dn) = cloud_display_name.as_deref() {
+                if !dn.trim().is_empty() {
+                    p.name = dn.trim().to_string();
+                }
+            } else if let Some(em) = cloud_email.as_deref() {
+                if !em.trim().is_empty() {
+                    p.name = em.trim().to_string();
+                }
+            }
+        }
+    } else {
+        p.cloud_email = None;
+        p.cloud_display_name = None;
+    }
     save_registry(&app, &reg).map_err(|e| e.to_string())
 }
 

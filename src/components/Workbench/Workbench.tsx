@@ -21,16 +21,15 @@ interface Props {
   /// height split under the old key.
   widthStorageKey?: string;
   /// Workbench width as a percentage of the lesson pane. Defaults to
-  /// 62 — bumped 48 → 56 → 62 (Notion "Update editor default
-  /// width"). This is a coding-learning app; during an exercise the
-  /// editor IS the focus, so it should clearly lead the split while
-  /// the prose keeps a usable ~38% reference column. The 56% bump
-  /// alone didn't visibly land because the persisted width key
-  /// (`libre:workbench-width-v1`) was overriding the default for
-  /// anyone who'd ever opened the app — see `widthStorageKey`,
-  /// which is now versioned to `-v2` so the new default actually
-  /// takes effect. Users who drag the divider AFTER the v2 cutover
-  /// keep their own width.
+  /// 50 (was 62 → 56 → 48; now back at an even 50/50 reader|editor
+  /// split). Pairs with the wider sidebar (clamp(300px, 33vw,
+  /// 560px)) to land roughly on a 33/33/33 viewport layout when the
+  /// sidebar is pinned open, and a clean 50/50 reader|editor split
+  /// when the sidebar is collapsed. As with the previous bumps,
+  /// existing users' persisted drag would override the new default,
+  /// so `widthStorageKey` is rolled `-v2` → `-v3` and pre-cutover
+  /// values are forgotten — users who drag after the cutover keep
+  /// their own width.
   defaultWorkbenchPct?: number;
   /// When true, the workbench stretches to fill its parent's full
   /// width, ignoring any persisted width and hiding the width-resize
@@ -71,8 +70,8 @@ export default function Workbench({
   output,
   defaultEditorPct = 75,
   storageKey = "libre:workbench-split-v3",
-  widthStorageKey = "libre:workbench-width-v2",
-  defaultWorkbenchPct = 62,
+  widthStorageKey = "libre:workbench-width-v3",
+  defaultWorkbenchPct = 50,
   fillWidth = false,
   widthControlsParent = false,
 }: Props) {

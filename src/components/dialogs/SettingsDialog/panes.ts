@@ -41,7 +41,7 @@ export type PaneId =
   | "shortcuts"
   | "data"
   | "developer"
-  | "profiles"
+  | "accounts"
   | "account";
 
 /// Top-level groupings shown as small headers in the nav rail. The
@@ -179,15 +179,17 @@ export const PANES: ReadonlyArray<PaneDef> = [
 
   // ── Cloud ───────────────────────────────────────────────────────
   {
-    id: "profiles",
+    id: "accounts",
     group: "cloud",
-    label: "Profiles",
-    hint: "Separate libraries · switch · isolate",
+    label: "Accounts",
+    hint: "Multiple sign-ins · separate libraries · switch",
     icon: users,
     searchTerms: [
+      "account",
+      "accounts",
       "profile",
       "profiles",
-      "account",
+      "sign in",
       "switch",
       "multiple",
       "separate",

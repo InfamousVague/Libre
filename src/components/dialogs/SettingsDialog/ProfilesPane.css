@@ -68,12 +68,30 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary, #f5f5f7);
+  /* The AccountsPane stacks a small sub-line (email / "Local pool"
+     / "Not signed in") under the main label — switch this cell to
+     a vertical flex with a tight gap so the two lines read as one
+     identity block. The two child spans set their own typography. */
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.libre-profiles__name > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Sub-line under the primary label: email / status. Quieter
+   weight + size so the eye lands on the main name first. */
+.libre-profiles__cloud-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary, rgba(245, 245, 247, 0.55));
 }
 
 .libre-profiles__cloud {
