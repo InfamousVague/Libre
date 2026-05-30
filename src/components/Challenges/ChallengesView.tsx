@@ -30,9 +30,11 @@ import {
   type CSSProperties,
   type MutableRefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "@base/primitives/icon";
 import { swords } from "@base/primitives/icon/icons/swords";
 import { x as xIcon } from "@base/primitives/icon/icons/x";
+import { rotateCcw } from "@base/primitives/icon/icons/rotate-ccw";
 import "@base/primitives/icon/icon.css";
 import type { Course } from "../../data/types";
 import {
@@ -191,6 +193,14 @@ interface Props {
   /// a step's matched lesson lands the learner inside the lesson
   /// reader / editor instead of dead-ending in the track view.
   onOpenLesson: (courseId: string, lessonId: string) => void;
+  /// Wipe every completion for a course (App's
+  /// `clearCourseCompletions`). When wired, right-clicking any
+  /// challenge-pack card surfaces a single-item "Reset progress"
+  /// floating menu — mirrors the Sidebar's per-course reset
+  /// affordance so the user has the same recovery path no matter
+  /// which surface they're on. Optional: omitting it just disables
+  /// the right-click menu, leaving the card as plain click-to-open.
+  onResetCourse?: (courseId: string) => void;
 }
 
 /// Viewport-width thresholds for the responsive column tier.
@@ -307,8 +317,63 @@ export default function ChallengesView({
   courses,
   completed,
   onOpenLesson,
+  onResetCourse,
 }: Props) {
+  const t = useT();
   const [query, setQuery] = useState("");
+  /// Right-click context-menu state. Mirrors the Sidebar's pattern:
+  /// a single floating menu portalled to body, positioned at the
+  /// cursor, dismissed by click-outside / Escape / scroll. Only
+  /// surfaces "Reset progress" since that's the one action the
+  /// Challenges grid is missing today; if more actions ever land
+  /// here (export, settings, delete) extract `ContextMenu` into a
+  /// shared component first.
+  const [packMenu, setPackMenu] = useState<{
+    courseId: string;
+    courseTitle: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  /// Dismiss the pack menu on any outside click, Escape, or scroll.
+  /// Same UX contract as the Sidebar's per-course menu — keeping
+  /// them consistent matters because both menus reach into the same
+  /// `clearCourseCompletions` action; a learner who used one knows
+  /// what the other does.
+  useEffect(() => {
+    if (!packMenu) return;
+    const dismiss = () => setPackMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    window.addEventListener("click", dismiss);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", dismiss, true);
+    return () => {
+      window.removeEventListener("click", dismiss);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", dismiss, true);
+    };
+  }, [packMenu]);
+
+  /// Single entry-point the card renderers call when they see a
+  /// right-click. Only opens for real packs (synthetic curated
+  /// tracks have no `courseId` to reset) AND only when the host
+  /// wired `onResetCourse` — otherwise the menu would render
+  /// empty.
+  const openPackMenu = onResetCourse
+    ? (courseId: string, e: React.MouseEvent) => {
+        const pack = courses.find((c) => c.id === courseId);
+        if (!pack) return;
+        e.preventDefault();
+        setPackMenu({
+          courseId,
+          courseTitle: pack.title,
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }
+    : undefined;
 
   // Tracks-page mode, persisted to sessionStorage so the
   // "you've already seen the intro" state survives in-session
@@ -594,6 +659,7 @@ export default function ChallengesView({
               onReachedEnd={handleReachedEnd}
               progressTargetRef={rootRef}
               progressOverrides={packProgress}
+              onContextMenuTrack={openPackMenu}
             />
             {/* "Keep scrolling" overlay — fades in over the tail
                 of the hyper carousel via the `--tracks-end-progress`
@@ -621,6 +687,7 @@ export default function ChallengesView({
                 completed={completed}
                 onOpenTrack={handleOpenPack}
                 progressOverrides={packProgress}
+                onContextMenuTrack={openPackMenu}
               />
             </div>
           </>
@@ -631,9 +698,42 @@ export default function ChallengesView({
             onOpenTrack={handleOpenPack}
             progressOverrides={packProgress}
             kindByTrackId={trackKindById}
+            onContextMenuTrack={openPackMenu}
           />
         )}
       </div>
+
+      {/* Pack-card right-click menu. Reuses the Sidebar's
+          `libre__context-menu` styles (Sidebar.css is loaded
+          globally since the rail is always mounted alongside
+          this view) so the affordance reads identically across
+          surfaces. Portalled to body so the Challenges grid's
+          overflow / transform stack can't clip it. */}
+      {packMenu && onResetCourse && createPortal(
+        <div
+          className="libre__context-menu"
+          style={{ left: packMenu.x, top: packMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="libre__context-menu-label">
+            {packMenu.courseTitle}
+          </div>
+          <button
+            type="button"
+            className="libre__context-menu-item"
+            onClick={() => {
+              onResetCourse(packMenu.courseId);
+              setPackMenu(null);
+            }}
+          >
+            <span className="libre__context-menu-icon" aria-hidden>
+              <Icon icon={rotateCcw} size="xs" color="currentColor" />
+            </span>
+            {t("sidebar.ctxResetProgress")}
+          </button>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -700,6 +800,7 @@ function TracksHyperScroll({
   onReachedEnd,
   progressTargetRef,
   progressOverrides,
+  onContextMenuTrack,
 }: {
   tracks: readonly LearningTrack[];
   completed: Set<string>;
@@ -720,6 +821,10 @@ function TracksHyperScroll({
   /// the card displays that progress instead of running the
   /// tree-walk fallback.
   progressOverrides?: ReadonlyMap<string, number>;
+  /// Right-click on a card → host opens the pack-actions menu at
+  /// the cursor. Optional; when absent the card is plain
+  /// click-to-open with no menu.
+  onContextMenuTrack?: (courseId: string, e: React.MouseEvent) => void;
 }) {
   // Capture latest `onReachedEnd` in a ref so the rAF effect
   // below doesn't rebuild every render. The handler closes over
@@ -1046,6 +1151,11 @@ function TracksHyperScroll({
             index={idx}
             completed={completed}
             onOpen={() => onOpenTrack(track.id)}
+            onContextMenu={
+              onContextMenuTrack
+                ? (e) => onContextMenuTrack(track.id, e)
+                : undefined
+            }
             progressOverride={progressOverrides?.get(track.id)}
             registerRef={(el) => {
               if (el) cardRefs.current.set(track.id, el);
@@ -1075,6 +1185,7 @@ function TrackCardBody({
   index,
   completed,
   onOpen,
+  onContextMenu,
   variant,
   progressOverride,
 }: {
@@ -1082,6 +1193,11 @@ function TrackCardBody({
   index: number;
   completed: Set<string>;
   onOpen: () => void;
+  /// Right-click handler — host opens its pack-actions menu at
+  /// the cursor. Optional; when absent the card is plain
+  /// click-to-open with no menu (preserves the previous behaviour
+  /// for callers that haven't wired the new pathway).
+  onContextMenu?: (e: React.MouseEvent) => void;
   variant: "hyper" | "grid";
   /// Optional 0..1 progress fraction supplied by the caller.
   /// When present, the card uses it verbatim instead of running
@@ -1113,6 +1229,7 @@ function TrackCardBody({
       className={`libre-challenges__card libre-challenges__card--${variant}`}
       style={{ "--track-accent": track.accent } as CSSProperties}
       onClick={onOpen}
+      onContextMenu={onContextMenu}
     >
       <div className="libre-challenges__card-head">
         <span className="libre-challenges__card-tag">
@@ -1158,6 +1275,7 @@ function HyperCard({
   index,
   completed,
   onOpen,
+  onContextMenu,
   registerRef,
   progressOverride,
 }: {
@@ -1165,6 +1283,9 @@ function HyperCard({
   index: number;
   completed: Set<string>;
   onOpen: () => void;
+  /// Right-click → host opens its pack-actions menu. Forwarded
+  /// straight through to TrackCardBody.
+  onContextMenu?: (e: React.MouseEvent) => void;
   registerRef: (el: HTMLElement | null) => void;
   /// 0..1 progress fraction for this card, when the surrounding
   /// renderer already knows the answer (e.g., challenge packs).
@@ -1183,6 +1304,7 @@ function HyperCard({
         index={index}
         completed={completed}
         onOpen={onOpen}
+        onContextMenu={onContextMenu}
         variant="hyper"
         progressOverride={progressOverride}
       />
@@ -1213,12 +1335,17 @@ function ChallengesGrid({
   tracks,
   completed,
   onOpenTrack,
+  onContextMenuTrack,
   progressOverrides,
   kindByTrackId,
 }: {
   tracks: readonly LearningTrack[];
   completed: Set<string>;
   onOpenTrack: (id: string) => void;
+  /// Right-click on a card → host opens the pack-actions menu at
+  /// the cursor. Optional; when absent the cards are plain
+  /// click-to-open with no menu.
+  onContextMenuTrack?: (courseId: string, e: React.MouseEvent) => void;
   /// Per-card progress overrides keyed by `track.id` (0..1).
   /// See TracksHyperScroll's prop docstring for the rationale —
   /// challenge packs ride this rail because their synthetic
@@ -1330,6 +1457,11 @@ function ChallengesGrid({
                     index={cellIdx}
                     completed={completed}
                     onOpen={() => onOpenTrack(track.id)}
+                    onContextMenu={
+                      onContextMenuTrack
+                        ? (e) => onContextMenuTrack(track.id, e)
+                        : undefined
+                    }
                     variant="grid"
                     progressOverride={progressOverrides?.get(track.id)}
                   />

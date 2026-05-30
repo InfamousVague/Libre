@@ -2235,6 +2235,7 @@ export default function App() {
                 selectLesson(courseId, lessonId);
                 setView("courses");
               }}
+              onResetCourse={clearCourseCompletions}
             />
           ) : view === "practice" ? (
             <PracticeView
