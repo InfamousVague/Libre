@@ -528,14 +528,17 @@ button {
    vertically instead of the row/workbench layout exercises use.
    In this single-column layout we left-align the content and cap width
    at a comfortable reading measure. The 680px cap keeps quiz questions
-   from stretching across the full pane on wide windows while still
-   leaving natural negative space on the right. */
+   from stretching across the full pane on wide windows; auto margins
+   centre the column in the workbench so a 1600px monitor doesn't
+   land the content hugging the left edge with a vast empty right
+   gutter. (Earlier left-pinned layout was intentional but read as
+   misaligned on wide monitors — feedback was unambiguous.) */
 .libre__lesson--column .libre-reader-inner,
 .libre__lesson--column .libre-quiz,
 .libre__lesson--column .libre__lesson-nav-wrap {
   max-width: 680px;
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .libre__lesson--column {
