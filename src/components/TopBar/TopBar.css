@@ -119,6 +119,68 @@
   height: 100%;
 }
 
+/* Compact icon (or icon + short label) button used by the topbar
+   actions row's social / external-link affordances. The base form
+   is a square 26×26 (currently unused — reserved for future
+   icon-only entries like GitHub/X); the `--labeled` modifier
+   expands the button into a pilled icon+text shape matching
+   `.libre__tip-trigger`'s metrics so the actions strip stays
+   visually uniform. Per-brand modifiers (`--discord` etc.) layer
+   the brand-coloured hover paint on top. */
+.libre__topbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--libre-radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--libre-motion-snappy),
+    border-color var(--libre-motion-snappy),
+    color var(--libre-motion-snappy);
+}
+
+/* Pilled variant: button grows to fit an icon + label, mirroring
+   `.libre__tip-trigger`'s padding/gap/font so neighbouring controls
+   line up on the same baseline. */
+.libre__topbar-icon-btn--labeled {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.libre__topbar-icon-btn-label {
+  /* Cheap line-height reset so the label sits on the icon's
+     vertical centre without nudging the button taller. */
+  line-height: 1;
+}
+
+.libre__topbar-icon-btn:hover,
+.libre__topbar-icon-btn:focus-visible {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
+/* Discord-specific hover paint: the brand blurple (#5865F2) lights
+   up on hover so the social affordance feels alive — neutral at
+   rest so it doesn't compete with the editor/lesson surface. */
+.libre__topbar-icon-btn--discord:hover,
+.libre__topbar-icon-btn--discord:focus-visible {
+  color: #5865f2;
+  border-color: rgba(88, 101, 242, 0.5);
+  background: rgba(88, 101, 242, 0.08);
+}
+
 /* Search trigger — looks like a search <input> with a leading
    magnifying glass and a trailing ⌘K kbd hint, but it's a <button>
    that pops the CommandPalette on click. Sits to the LEFT of the
